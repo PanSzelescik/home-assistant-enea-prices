@@ -26,22 +26,19 @@ Integracja konfigurowana jest w dwóch krokach:
 Aktywny okres taryfowy: **1 lutego – 31 grudnia 2026**
 Konfiguracja przykładowa: instalacja 3-fazowa, zużycie 1200–2800 kWh/rok, rozliczenie miesięczne
 
+Wszystkie wartości cenowe są **netto** (bez VAT). Ceny brutto oblicza integracja [Enea Licznik](https://github.com/PanSzelescik/home-assistant-enea) na podstawie danych z tej integracji.
+
 ### Sensory główne
 
-| Sensor | Strefa dzienna | Strefa nocna |
-|--------|:--------------:|:------------:|
-| Aktualna strefa | `Dzień` lub `Noc` | *(zależnie od godziny)* |
+| Sensor | Dzień | Noc |
+|--------|:-----:|:---:|
+| Aktualna strefa | `Dzień` | `Noc` *(zależnie od godziny)* |
 | Aktualna cena energii (netto) | 0.5779 zł/kWh | 0.3369 zł/kWh |
-| Aktualna cena energii (brutto) | 0.7170 zł/kWh | 0.4205 zł/kWh |
 | Aktualna opłata dystrybucyjna (netto) | 0.3214 zł/kWh | 0.1348 zł/kWh |
-| Aktualna opłata dystrybucyjna (brutto) | 0.3953 zł/kWh | 0.1658 zł/kWh |
 | Aktualny składnik sieciowy (netto) | 0.2779 zł/kWh | 0.0913 zł/kWh |
 | Aktualna cena całkowita (netto) | 0.8993 zł/kWh | 0.4717 zł/kWh |
-| Aktualna cena całkowita (brutto) | 1.1123 zł/kWh | 0.5863 zł/kWh |
-| Cena energii – dzień (netto/brutto) | 0.5779 / 0.7170 zł/kWh | — |
-| Cena energii – noc (netto/brutto) | — | 0.3369 / 0.4205 zł/kWh |
-| Cena całkowita – dzień (netto/brutto) | 0.8993 / 1.1123 zł/kWh | — |
-| Cena całkowita – noc (netto/brutto) | — | 0.4717 / 0.5863 zł/kWh |
+| Cena energii – dzień/noc (netto) | 0.5779 zł/kWh | 0.3369 zł/kWh |
+| Cena całkowita – dzień/noc (netto) | 0.8993 zł/kWh | 0.4717 zł/kWh |
 | Opłata stała sieciowa | **14.56 zł/miesiąc** (3-fazowa) | |
 | Opłata abonamentowa | **3.84 zł/miesiąc** (rozl. miesięczne) | |
 | Opłata mocowa | **17.18 zł/miesiąc** (1200–2800 kWh/rok) | |
@@ -57,27 +54,11 @@ Widoczne w zakładce **Diagnostics** urządzenia (ukryte w głównym widoku).
 | Sensor | Dzień | Noc |
 |--------|:-----:|:---:|
 | Opłata dystrybucyjna – dzień/noc (netto) | 0.3214 | 0.1348 |
-| Opłata dystrybucyjna – dzień/noc (brutto) | 0.3953 | 0.1658 |
-| Składnik sieciowy – dzień/noc | 0.2779 | 0.0913 |
+| Składnik sieciowy – dzień/noc (netto) | 0.2779 | 0.0913 |
 | Stawka jakościowa | 0.0332 | *(taka sama)* |
 | Opłata OZE | 0.0073 | *(taka sama)* |
 | Opłata kogeneracyjna | 0.0030 | *(taka sama)* |
 | Opłata przejściowa | **0.00 zł/miesiąc** *(zniesiona w 2026)* | |
-
-### Jak obliczane są ceny brutto?
-
-```
-Energia brutto      = (energia_netto + akcyza) × 1.23
-                    = (0.5779 + 0.0050) × 1.23 = 0.7170 zł/kWh
-
-Dystrybucja brutto  = dystrybucja_netto × 1.23
-                    = 0.3214 × 1.23 = 0.3953 zł/kWh
-
-Całkowita brutto    = (energia_netto + akcyza + dystrybucja_netto) × 1.23
-                    = (0.5779 + 0.0050 + 0.3214) × 1.23 = 1.1123 zł/kWh
-```
-
-Akcyza: **0.005 zł/kWh** (podatek akcyzowy na energię elektryczną), VAT: **23%**
 
 ## Strefy taryfowe G12
 
@@ -88,14 +69,36 @@ Akcyza: **0.005 zł/kWh** (podatek akcyzowy na energię elektryczną), VAT: **23
 
 ## Koszty w dashboardzie Energia
 
-Integracja jest niezależna od integracji licznika. Aby liczyć koszty w dashboardzie Energia:
+Integracja automatycznie wstrzykuje do recordera godzinowe statystyki cen (netto, zł/kWh)
+dla każdego statycznego sensora per strefa, obejmując **cały aktywny okres taryfowy od `valid_from`**.
+Dzięki temu koszty są dostępne retroaktywnie — nawet jeśli integracja została zainstalowana po starcie okresu.
 
-1. Dodaj źródło energii (np. z integracji licznika Enea)
-2. Jako sensor ceny wybierz odpowiedni sensor z tej integracji, np.:
-   - `sensor.enea_ceny_g12_cena_calkowita_dzien_brutto` dla strefy dziennej
-   - `sensor.enea_ceny_g12_cena_calkowita_noc_brutto` dla strefy nocnej
+Aby skonfigurować śledzenie kosztów w dashboardzie Energia:
 
-> **Uwaga:** HA zaczyna zapisywać statystyki cen od momentu instalacji integracji. Koszty dla dat przed instalacją nie będą dostępne.
+1. Dodaj źródło energii (z dowolnej integracji licznika, np. [Enea Licznik](https://github.com/PanSzelescik/home-assistant-enea))
+2. Przy źródle energii wybierz opcję **„Użyj encji z bieżącą ceną"** i wskaż sensor z tej integracji, np.:
+   - `sensor.enea_ceny_g12_cena_calkowita_dzien_netto` dla strefy dziennej
+   - `sensor.enea_ceny_g12_cena_calkowita_noc_netto` dla strefy nocnej
+
+HA pobierze historyczne statystyki mean z recordera i policzy koszty retroaktywnie (kWh × cena/h).
+
+> **Koszty brutto** (z VAT): integracja [Enea Licznik](https://github.com/PanSzelescik/home-assistant-enea) oferuje zaawansowane śledzenie kosztów brutto — oblicza je we współpracy z danymi z tej integracji i wstrzykuje jako oddzielne statystyki zewnętrzne.
+
+## Powiązana integracja – Enea Licznik
+
+Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-enea) pobiera dane o zużyciu energii z liczników zdalnego odczytu (AMI) Enea Operator i ściśle współpracuje z Enea Ceny:
+
+- Enea Licznik automatycznie wykrywa zainstalowane Enea Ceny i oblicza **koszty brutto** (z VAT i akcyzą) dla każdej godziny, wstrzykując je jako statystyki zewnętrzne `enea:{PPE}_koszt_...`
+- Koszty są gotowe do użycia w **Energy Dashboard** jako „encja śledząca całkowite koszty"
+- Obie integracje są w pełni niezależne — Enea Ceny działa samodzielnie jako źródło cen
+
+| Funkcja | Enea Ceny (ten projekt) | Enea Licznik |
+|---------|------------------------|--------------|
+| Aktualne ceny netto | ✅ | ❌ |
+| Statystyki cen netto | ✅ (automatyczne) | ❌ |
+| Odczyty zużycia kWh | ❌ | ✅ |
+| Koszty brutto (PLN) | ❌ | ✅ (wymaga Enea Ceny) |
+| Szacowanie rachunku | ❌ | ✅ (wymaga Enea Ceny) |
 
 ## Obsługiwane taryfy
 

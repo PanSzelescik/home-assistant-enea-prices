@@ -15,7 +15,7 @@ custom_components/enea_prices/
   config_flow.py    # 2 kroki: wybór taryfy → szczegóły instalacji (fazy, zużycie, rozliczenie)
   const.py          # DOMAIN, PLATFORMS, klucze konfiguracji
   tariffs.py        # model danych: TariffGroup > TariffPeriod > ZonePricing + MonthlyFees
-  sensor.py         # ~30 sensorów: dynamiczne (zmieniają się ze strefą) + statyczne + miesięczne
+  sensor.py         # ~22 sensory (G12): 5 dynamicznych + 8 per-strefa + 3 diagnostyczne + 4 miesięczne + 2 datowe
   translations/
     pl.json
     en.json
@@ -65,18 +65,20 @@ Dla G11/G12 holidays nie są ładowane — `_load_holiday_dates` zwraca `frozens
 
 ## Statystyki
 
-Sensory cenowe **nie mają** `state_class` — unika warningu Energy dashboard o `last_reset`.
+Statyczne sensory cenowe mają `state_class=MEASUREMENT` — wymagane przez `async_import_statistics`
+z `source="recorder"` (bez tego HA odrzuca import statystyk).
 
-Zamiast tego `statistics.py` wstrzykuje statystyki godzinowe (mean = stała wartość ceny) przez
+`statistics.py` wstrzykuje statystyki godzinowe (mean = stała wartość ceny) przez
 `async_import_statistics` (source=`"recorder"`) dla każdego statycznego sensora cenowego per strefa.
 Statystyki obejmują cały okres taryfowy od `valid_from` do wczoraj.
-
-Energy dashboard używa tych statystyk do obliczania kosztów historycznych (kWh × cena/h).
 Wywołanie następuje automatycznie przy starcie integracji (`sensor.py:async_setup_entry`).
+Przy kolejnych startach pomijane są godziny już zaimportowane (`get_last_statistics`).
 
-Konfiguracja Energy dashboard: opcja „Użyj encji z bieżącą ceną" — wybierz statyczny sensor
-per strefa (np. `day_price_total`, `night_price_total`). Sensory brutto zostały usunięte;
-statystyki kosztów brutto są obliczane przez `costs.py` w integracji `enea`.
+Energy dashboard — opcja „Użyj encji z bieżącą ceną": wybierz statyczny sensor per strefa
+(np. `day_price_total`, `night_price_total`). HA pobierze historyczne mean-statystyki z recordera
+i policzy koszty retroaktywnie od `valid_from`.
+
+Sensory brutto nie istnieją w tej integracji; koszty brutto oblicza `costs.py` w integracji `enea`.
 
 ## Opłaty miesięczne
 
