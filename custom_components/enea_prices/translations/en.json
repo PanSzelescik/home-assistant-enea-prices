@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Enea Prices",
+        "description": "Select the tariff group to create electricity price sensors.",
+        "data": {
+          "tariff": "Tariff group"
+        }
+      },
+      "details": {
+        "title": "Installation details",
+        "description": "Details needed to calculate your monthly fixed fees.",
+        "data": {
+          "phases": "Installation type",
+          "annual_kwh": "Annual energy consumption",
+          "billing_months": "Billing period"
+        }
+      },
+      "reconfigure": {
+        "title": "Change installation details",
+        "description": "Update the details used to calculate your monthly fixed fees.",
+        "data": {
+          "phases": "Installation type",
+          "annual_kwh": "Annual energy consumption",
+          "billing_months": "Billing period"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This tariff is already configured",
+      "reconfigure_successful": "Configuration updated successfully"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_zone": {
+        "name": "Current Zone",
+        "state": {
+          "day": "Day",
+          "night": "Night",
+          "peak": "Peak",
+          "off_peak": "Off-Peak"
+        }
+      },
+      "current_price_energy":          { "name": "Current Energy Price (netto)" },
+      "current_price_total":           { "name": "Current Total Price (netto)" },
+      "current_distribution":          { "name": "Current Distribution Fee (netto)" },
+      "current_network_fee":           { "name": "Current Network Fee (netto)" },
+      "day_price_energy":              { "name": "Day Zone Energy Price (netto)" },
+      "night_price_energy":            { "name": "Night Zone Energy Price (netto)" },
+      "peak_price_energy":             { "name": "Peak Zone Energy Price (netto)" },
+      "off_peak_price_energy":         { "name": "Off-Peak Zone Energy Price (netto)" },
+      "day_price_total":               { "name": "Day Zone Total Price (netto)" },
+      "night_price_total":             { "name": "Night Zone Total Price (netto)" },
+      "peak_price_total":              { "name": "Peak Zone Total Price (netto)" },
+      "off_peak_price_total":          { "name": "Off-Peak Zone Total Price (netto)" },
+      "day_distribution":              { "name": "Day Zone Distribution Fee (netto)" },
+      "night_distribution":            { "name": "Night Zone Distribution Fee (netto)" },
+      "peak_distribution":             { "name": "Peak Zone Distribution Fee (netto)" },
+      "off_peak_distribution":         { "name": "Off-Peak Zone Distribution Fee (netto)" },
+      "day_network_fee":               { "name": "Day Zone Network Fee" },
+      "night_network_fee":             { "name": "Night Zone Network Fee" },
+      "peak_network_fee":              { "name": "Peak Zone Network Fee" },
+      "off_peak_network_fee":          { "name": "Off-Peak Zone Network Fee" },
+      "quality_fee":                   { "name": "Quality Fee" },
+      "oze_fee":                       { "name": "RES Fee" },
+      "cogeneration_fee":              { "name": "Cogeneration Fee" },
+      "monthly_network_fixed":         { "name": "Fixed Network Fee" },
+      "monthly_subscription":          { "name": "Subscription Fee" },
+      "monthly_capacity":              { "name": "Capacity Fee" },
+      "monthly_transition":            { "name": "Transition Fee" },
+      "valid_from":                    { "name": "Tariff valid from" },
+      "valid_until":                   { "name": "Tariff valid until (inclusive)" }
+    }
+  }
+}

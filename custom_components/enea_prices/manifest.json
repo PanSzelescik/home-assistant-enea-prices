@@ -1,0 +1,11 @@
+{
+  "domain": "enea_prices",
+  "name": "Enea Ceny",
+  "codeowners": ["@PanSzelescik"],
+  "config_flow": true,
+  "documentation": "https://github.com/PanSzelescik/home-assistant-enea-prices",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/PanSzelescik/home-assistant-enea-prices/issues",
+  "requirements": ["holidays==0.84"],
+  "version": "0.1.0"
+}

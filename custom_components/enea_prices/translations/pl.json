@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfiguracja Enea Ceny",
+        "description": "Wybierz grupę taryfową, aby utworzyć sensory z cenami prądu.",
+        "data": {
+          "tariff": "Grupa taryfowa"
+        }
+      },
+      "details": {
+        "title": "Szczegóły instalacji",
+        "description": "Dane potrzebne do obliczenia opłat miesięcznych.",
+        "data": {
+          "phases": "Typ instalacji",
+          "annual_kwh": "Roczne zużycie energii",
+          "billing_months": "Okres rozliczeniowy"
+        }
+      },
+      "reconfigure": {
+        "title": "Zmień szczegóły instalacji",
+        "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych.",
+        "data": {
+          "phases": "Typ instalacji",
+          "annual_kwh": "Roczne zużycie energii",
+          "billing_months": "Okres rozliczeniowy"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Ta taryfa jest już skonfigurowana",
+      "reconfigure_successful": "Konfiguracja została zaktualizowana"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_zone": {
+        "name": "Aktualna strefa",
+        "state": {
+          "day": "Dzień",
+          "night": "Noc",
+          "peak": "Szczyt",
+          "off_peak": "Poza szczytem"
+        }
+      },
+      "current_price_energy":          { "name": "Aktualna cena energii (netto)" },
+      "current_price_total":           { "name": "Aktualna cena całkowita (netto)" },
+      "current_distribution":          { "name": "Aktualna opłata dystrybucyjna (netto)" },
+      "current_network_fee":           { "name": "Aktualny składnik sieciowy (netto)" },
+      "day_price_energy":              { "name": "Cena energii – dzień (netto)" },
+      "night_price_energy":            { "name": "Cena energii – noc (netto)" },
+      "peak_price_energy":             { "name": "Cena energii – szczyt (netto)" },
+      "off_peak_price_energy":         { "name": "Cena energii – poza szczytem (netto)" },
+      "day_price_total":               { "name": "Cena całkowita – dzień (netto)" },
+      "night_price_total":             { "name": "Cena całkowita – noc (netto)" },
+      "peak_price_total":              { "name": "Cena całkowita – szczyt (netto)" },
+      "off_peak_price_total":          { "name": "Cena całkowita – poza szczytem (netto)" },
+      "day_distribution":              { "name": "Opłata dystrybucyjna – dzień (netto)" },
+      "night_distribution":            { "name": "Opłata dystrybucyjna – noc (netto)" },
+      "peak_distribution":             { "name": "Opłata dystrybucyjna – szczyt (netto)" },
+      "off_peak_distribution":         { "name": "Opłata dystrybucyjna – poza szczytem (netto)" },
+      "day_network_fee":               { "name": "Składnik sieciowy – dzień" },
+      "night_network_fee":             { "name": "Składnik sieciowy – noc" },
+      "peak_network_fee":              { "name": "Składnik sieciowy – szczyt" },
+      "off_peak_network_fee":          { "name": "Składnik sieciowy – poza szczytem" },
+      "quality_fee":                   { "name": "Stawka jakościowa" },
+      "oze_fee":                       { "name": "Opłata OZE" },
+      "cogeneration_fee":              { "name": "Opłata kogeneracyjna" },
+      "monthly_network_fixed":         { "name": "Opłata stała sieciowa" },
+      "monthly_subscription":          { "name": "Opłata abonamentowa" },
+      "monthly_capacity":              { "name": "Opłata mocowa" },
+      "monthly_transition":            { "name": "Opłata przejściowa" },
+      "valid_from":                    { "name": "Taryfa obowiązuje od" },
+      "valid_until":                   { "name": "Taryfa obowiązuje do (włącznie)" }
+    }
+  }
+}
