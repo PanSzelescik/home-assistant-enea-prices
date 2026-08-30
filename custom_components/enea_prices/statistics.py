@@ -11,10 +11,15 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, time, timedelta
+from functools import partial
 
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import StatisticData, StatisticMeanType, StatisticMetaData
-from homeassistant.components.recorder.statistics import async_import_statistics, get_last_statistics
+from homeassistant.components.recorder.statistics import (
+    async_import_statistics,
+    get_last_statistics,
+    statistics_during_period,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -29,7 +34,7 @@ async def async_inject_price_statistics(hass: HomeAssistant, group: TariffGroup)
     """Inject hourly mean statistics for all static price sensors of this tariff group.
 
     Covers every hour from the tariff period's valid_from up to yesterday.
-    Uses get_last_statistics to avoid re-injecting already-present data.
+    Hours already present in the statistics table are skipped.
     """
     registry = er.async_get(hass)
     today = dt_util.now().date()
@@ -60,37 +65,60 @@ async def _inject_sensor_statistics(
     valid_from: date,
     end_date: date,
 ) -> None:
-    """Inject hourly mean statistics for a single price sensor with a constant value."""
-    # Find the last already-injected statistic to avoid duplicates.
-    last_stats = await get_instance(hass).async_add_executor_job(
-        get_last_statistics, hass, 1, entity_id, True, {"mean"}
-    )
+    """Inject hourly mean statistics for one price sensor, backfilling gaps.
 
-    if last_stats.get(entity_id):
-        last_ts = last_stats[entity_id][0].get("start")
-        if last_ts is not None:
-            last_date = (
-                dt_util.utc_from_timestamp(last_ts)
-                .astimezone(dt_util.DEFAULT_TIME_ZONE)
-                .date()
-            )
-            if last_date >= end_date:
-                return  # Already up to date
-            start_date = last_date + timedelta(days=1)
-        else:
-            start_date = valid_from
-    else:
-        start_date = valid_from
+    Checks which hours are actually missing across the whole period window
+    instead of looking only at the newest stored entry, so an older tariff
+    period added later is filled in as well.
 
-    if start_date > end_date:
+    Only hours strictly before the newest stored statistic are written.  The
+    price sensors have a state class, so the recorder compiles their hourly
+    statistics itself, and after a restart it catches up on the hour the
+    shutdown cut short.  Importing those hours here races the recorder's own
+    blind insert into the same unique key, and losing that race rolls back
+    the recorder's whole catch-up batch, for every entity in the install.
+    Hours the sensor was dead for become gaps behind the recorder's newest
+    row once it writes again, and the next run fills them then.
+    """
+    start_dt = datetime.combine(valid_from, time(0, 0), tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    end_dt = datetime.combine(end_date, time(23, 0), tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    if start_dt > end_dt:
         return
 
-    # Generate one StatisticData entry per hour for the missing range.
+    existing = await get_instance(hass).async_add_executor_job(
+        partial(
+            statistics_during_period,
+            hass,
+            start_dt,
+            end_dt + timedelta(hours=1),
+            {entity_id},
+            "hour",
+            None,
+            {"mean"},
+        )
+    )
+    present = {
+        int(row["start"])
+        for row in existing.get(entity_id, [])
+        if row.get("start") is not None
+    }
+
+    newest = await get_instance(hass).async_add_executor_job(
+        get_last_statistics, hass, 1, entity_id, True, {"mean"}
+    )
+    rows = newest.get(entity_id)
+    recorder_owns_after = (
+        rows[0]["start"] if rows and rows[0].get("start") is not None else None
+    )
+
+    # Generate one StatisticData entry per missing hour before the newest one.
     stats_data: list[StatisticData] = []
-    current = datetime.combine(start_date, time(0, 0), tzinfo=dt_util.DEFAULT_TIME_ZONE)
-    end_dt = datetime.combine(end_date, time(23, 0), tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    current = start_dt
     while current <= end_dt:
-        stats_data.append(StatisticData(start=current, mean=value))
+        if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
+            break
+        if int(current.timestamp()) not in present:
+            stats_data.append(StatisticData(start=current, mean=value))
         current += timedelta(hours=1)
 
     if not stats_data:
@@ -109,5 +137,5 @@ async def _inject_sensor_statistics(
     async_import_statistics(hass, metadata, stats_data)
     _LOGGER.debug(
         "Injected %d price stats for %s (%.4f %s, %s → %s)",
-        len(stats_data), entity_id, value, UNIT_PRICE, start_date, end_date,
+        len(stats_data), entity_id, value, UNIT_PRICE, valid_from, end_date,
     )
