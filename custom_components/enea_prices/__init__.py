@@ -37,7 +37,8 @@ def _async_reload_matching_enea_entries(hass: HomeAssistant, tariff_name: str) -
         coordinator = getattr(getattr(enea_entry, "runtime_data", None), "coordinator", None)
         if coordinator is None:
             continue
-        if getattr(coordinator, "_tariff_name", None) == tariff_name:
+        reported = getattr(coordinator, "_tariff_name", None) or ""
+        if reported.casefold() == tariff_name.casefold():
             hass.async_create_task(
                 hass.config_entries.async_reload(enea_entry.entry_id)
             )
