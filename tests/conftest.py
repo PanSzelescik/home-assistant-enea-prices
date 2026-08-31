@@ -13,8 +13,26 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from homeassistant.util import dt as dt_util
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+TEST_TIME_ZONE = "Europe/Warsaw"
+"""The zone a real installation of this integration runs in.
+
+It has to be a zone that observes daylight saving time: the hours written for
+a day are derived from the zone, and in plain UTC every day is 24 hours long,
+so a bare test process would never exercise the short and long days at all.
+"""
+
+
+@pytest.fixture(autouse=True)
+def _local_time_zone() -> Any:
+    """Pin the zone the integration treats as local."""
+    previous = dt_util.DEFAULT_TIME_ZONE
+    dt_util.set_default_time_zone(dt_util.get_time_zone(TEST_TIME_ZONE))
+    yield
+    dt_util.set_default_time_zone(previous)
 
 
 @dataclass

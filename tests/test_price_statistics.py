@@ -67,6 +67,16 @@ def wired(monkeypatch: pytest.MonkeyPatch, stats_store: StatsStore):
     return _wire
 
 
+def _local_dates(starts: list[datetime.datetime]) -> set[datetime.date]:
+    """The local days the written hours fall on.
+
+    Rows are written with UTC start times, so the day has to be read back in
+    the local zone rather than off the timestamp.
+    """
+    tz = price_stats.dt_util.DEFAULT_TIME_ZONE
+    return {start.astimezone(tz).date() for start in starts}
+
+
 def _hours(day: datetime.date, count: int = 24) -> list[datetime.datetime]:
     """The first count hours of a day, in the zone the integration treats as local."""
     tz = price_stats.dt_util.DEFAULT_TIME_ZONE
@@ -172,7 +182,10 @@ async def test_fills_a_period_older_than_stored_data(wired) -> None:
     )
 
     assert len(store.starts) == 48
-    assert max(store.starts).date() == datetime.date(2025, 1, 2)
+    assert _local_dates(store.starts) == {
+        datetime.date(2025, 1, 1),
+        datetime.date(2025, 1, 2),
+    }
 
 
 async def test_fully_covered_period_writes_nothing(wired) -> None:
@@ -193,6 +206,59 @@ async def test_inverted_range_writes_nothing(wired) -> None:
 
     await price_stats._inject_sensor_statistics(
         object(), ENTITY, 0.6518, datetime.date(2026, 2, 1), datetime.date(2026, 1, 1)
+    )
+
+    assert store.injected == []
+
+
+SPRING_FORWARD = datetime.date(2026, 3, 29)
+"""Clocks go forward at 02:00: this local day is 23 hours long."""
+
+AUTUMN_BACK = datetime.date(2026, 10, 25)
+"""Clocks go back at 03:00: this local day is 25 hours long."""
+
+
+def _real_hours(day: datetime.date) -> list[datetime.datetime]:
+    """Every hour that actually exists in a local day, however long the day is.
+
+    Built by stepping in UTC between the day's two local midnights, so it is
+    independent of the arithmetic the code under test uses.
+    """
+    tz = price_stats.dt_util.DEFAULT_TIME_ZONE
+    at_midnight = datetime.datetime.combine(day, datetime.time(0, 0), tzinfo=tz)
+    current = at_midnight.astimezone(datetime.UTC)
+    limit = (at_midnight + datetime.timedelta(days=1)).astimezone(datetime.UTC)
+    hours = []
+    while current < limit:
+        hours.append(current)
+        current += datetime.timedelta(hours=1)
+    return hours
+
+
+@pytest.mark.parametrize(
+    "day", [datetime.date(2026, 1, 1), SPRING_FORWARD, AUTUMN_BACK]
+)
+async def test_a_day_gets_a_price_for_every_hour_it_has(wired, day) -> None:
+    """Each local day must be priced for its own length: 23, 24 or 25 hours.
+
+    The hours were stepped through by adding an hour at a time to a local
+    datetime, which follows the wall clock rather than the clock on the wall
+    changing.  In spring that produced the same instant twice; in autumn it
+    skipped an hour that really happened, leaving it with no price at all.
+    """
+    store = wired([])
+
+    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.6518, day, day)
+
+    assert sorted(store.starts) == _real_hours(day)
+
+
+async def test_running_again_over_a_long_day_writes_nothing(wired) -> None:
+    """The repeated hour must be recognised as stored, not written a second time."""
+    store = wired(_real_hours(AUTUMN_BACK))
+
+    await price_stats._inject_sensor_statistics(
+        object(), ENTITY, 0.6518, AUTUMN_BACK, AUTUMN_BACK
     )
 
     assert store.injected == []

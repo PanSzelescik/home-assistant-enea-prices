@@ -10,7 +10,7 @@ for cost calculations.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 from functools import partial
 
 from homeassistant.components.recorder import get_instance
@@ -79,10 +79,14 @@ async def _inject_sensor_statistics(
     the recorder's whole catch-up batch, for every entity in the install.
     Hours the sensor was dead for become gaps behind the recorder's newest
     row once it writes again, and the next run fills them then.
+
+    The window runs from local midnight on valid_from to local midnight after
+    end_date, and the hours inside it are stepped through in UTC, so the days
+    the clocks change get the 23 or 25 hours they really have.
     """
-    start_dt = datetime.combine(valid_from, time(0, 0), tzinfo=dt_util.DEFAULT_TIME_ZONE)
-    end_dt = datetime.combine(end_date, time(23, 0), tzinfo=dt_util.DEFAULT_TIME_ZONE)
-    if start_dt > end_dt:
+    start_dt = dt_util.start_of_local_day(valid_from)
+    end_dt = dt_util.start_of_local_day(end_date + timedelta(days=1))
+    if start_dt >= end_dt:
         return
 
     existing = await get_instance(hass).async_add_executor_job(
@@ -90,7 +94,7 @@ async def _inject_sensor_statistics(
             statistics_during_period,
             hass,
             start_dt,
-            end_dt + timedelta(hours=1),
+            end_dt,
             {entity_id},
             "hour",
             None,
@@ -113,8 +117,9 @@ async def _inject_sensor_statistics(
 
     # Generate one StatisticData entry per missing hour before the newest one.
     stats_data: list[StatisticData] = []
-    current = start_dt
-    while current <= end_dt:
+    current = start_dt.astimezone(dt_util.UTC)
+    limit = end_dt.astimezone(dt_util.UTC)
+    while current < limit:
         if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
             break
         if int(current.timestamp()) not in present:
