@@ -57,11 +57,12 @@ Zmiana strefy przy Sob/Nd i świętach obsługiwana przez refresh o 0:00.
 
 ## Obsługa świąt (G12w)
 
-Pakiet `holidays==0.84` (ten sam co `workday`/`holiday` w HA core).
-Ładowany w `sensor.py` przez `hass.async_add_executor_job` przy starcie integracji.
-Pokrywa 3 lata od daty uruchomienia: `country_holidays("PL", years=range(current_year, current_year + 3))`.
-Dzień świąteczny Pon–Pt traktowany jak sobota przy wyborze strefy (`is_holiday=True` → `effective_weekday=5`).
-Dla G11/G12 holidays nie są ładowane — `_load_holiday_dates` zwraca `frozenset()` natychmiast.
+Pakiet `holidays` w wersji z `manifest.json`. Święta pobiera `_polish_holidays(year)`
+w `tariffs.py` — `country_holidays("PL", years=[year])` pod `@lru_cache`, wołane
+synchronicznie z `get_zone_at_hour` przy pierwszym zapytaniu o dany rok.
+Dzień świąteczny Pon–Pt jest traktowany jak sobota przy wyborze strefy (`weekday = 5`).
+Dla taryf bez harmonogramu tygodniowego (G11, G12) sprawdzenie świąt jest pomijane —
+parametr `day` nie wpływa na wynik.
 
 ## Statystyki
 
@@ -72,7 +73,11 @@ z `source="recorder"` (bez tego HA odrzuca import statystyk).
 `async_import_statistics` (source=`"recorder"`) dla każdego statycznego sensora cenowego per strefa.
 Statystyki obejmują cały okres taryfowy od `valid_from` do wczoraj.
 Wywołanie następuje automatycznie przy starcie integracji (`sensor.py:async_setup_entry`).
-Przy kolejnych startach pomijane są godziny już zaimportowane (`get_last_statistics`).
+Przy każdym uruchomieniu zapisywane są tylko godziny brakujące w oknie okresu
+(`statistics_during_period`), i wyłącznie te sprzed najnowszej zapisanej statystyki
+(`get_last_statistics`) — godziny na końcu i za nią należą do rekordera, który sam
+kompiluje statystyki tych sensorów; import tej samej godziny ścigałby się z jego
+ślepym INSERT-em i wycofywał całą paczkę nadrabianych statystyk.
 
 Energy dashboard — opcja „Użyj encji z bieżącą ceną": wybierz statyczny sensor per strefa
 (np. `day_price_total`, `night_price_total`). HA pobierze historyczne mean-statystyki z recordera
