@@ -10,17 +10,11 @@ platform now takes once the recorder has moved the boundary.
 from __future__ import annotations
 
 import datetime
-from typing import Any
 
-import pytest
-from conftest import FakeConfigEntry, FakeHass
 from homeassistant.const import EVENT_RECORDER_HOURLY_STATISTICS_GENERATED
 
 from custom_components import enea_prices
-from custom_components.enea_prices import sensor as prices_sensor
 from custom_components.enea_prices import statistics as price_stats
-from custom_components.enea_prices.const import CONF_TARIFF
-from custom_components.enea_prices.tariffs import TARIFFS
 
 ENTITY = "sensor.enea_ceny_g12w_peak_zone_energy_price_netto"
 UTC = datetime.timezone.utc
@@ -57,57 +51,30 @@ async def test_the_gap_is_filled_once_the_recorder_has_moved(wired) -> None:
     assert len(store.starts) == HOURS_IN_PERIOD
 
 
-@pytest.fixture
-def platform(monkeypatch: pytest.MonkeyPatch):
-    """Set the sensor platform up against fakes, recording every injection."""
-    injections: list[Any] = []
-
-    async def _record(hass: Any, group: Any) -> None:
-        """Stand in for the injection, which has its own tests above."""
-        injections.append(group)
-
-    monkeypatch.setattr(prices_sensor, "async_inject_price_statistics", _record)
-    monkeypatch.setattr(
-        prices_sensor, "async_track_time_change", lambda *args, **kwargs: lambda: None
-    )
-
-    async def _setup() -> tuple[FakeHass, FakeConfigEntry, list[Any]]:
-        entry = FakeConfigEntry(domain="enea_prices", data={CONF_TARIFF: "G12w"})
-        entry.runtime_data = enea_prices.EneaPricesRuntimeData(
-            tariff=TARIFFS["G12w"], phases=1, annual_kwh=2000, billing_months=6
-        )
-        hass = FakeHass([entry])
-        await prices_sensor.async_setup_entry(hass, entry, lambda entities: None)
-        await hass.async_settle()
-        return hass, entry, injections
-
-    return _setup
-
-
 async def test_the_injection_runs_again_once_the_recorder_moves(platform) -> None:
     """The compiled hour that unblocks the gap must trigger a second injection.
 
     Setup is the only place the injection used to run, so the gap stayed until
     the entry was set up again — a restart or a manual reload.
     """
-    hass, _entry, injections = await platform()
-    assert len(injections) == 1  # the one at setup
+    setup = await platform()
+    assert len(setup.injections) == 1  # the one at setup
 
-    hass.bus.async_fire(EVENT_RECORDER_HOURLY_STATISTICS_GENERATED)
-    await hass.async_settle()
+    setup.hass.bus.async_fire(EVENT_RECORDER_HOURLY_STATISTICS_GENERATED)
+    await setup.hass.async_settle()
 
-    assert len(injections) == 2
+    assert len(setup.injections) == 2
 
 
 async def test_unloading_before_the_hour_drops_the_listener(platform) -> None:
     """An entry unloaded within the hour must not inject afterwards."""
-    hass, entry, injections = await platform()
+    setup = await platform()
 
-    assert await enea_prices.async_unload_entry(hass, entry)
-    hass.bus.async_fire(EVENT_RECORDER_HOURLY_STATISTICS_GENERATED)
-    await hass.async_settle()
+    assert await enea_prices.async_unload_entry(setup.hass, setup.entry)
+    setup.hass.bus.async_fire(EVENT_RECORDER_HOURLY_STATISTICS_GENERATED)
+    await setup.hass.async_settle()
 
-    assert len(injections) == 1
+    assert len(setup.injections) == 1
 
 
 async def test_unloading_after_the_hour_leaves_the_fired_listener_alone(
@@ -119,8 +86,8 @@ async def test_unloading_after_the_hour_leaves_the_fired_listener_alone(
     logs an exception for a removal it cannot match — which every entry
     unloaded more than an hour after its setup would then produce.
     """
-    hass, entry, _injections = await platform()
-    hass.bus.async_fire(EVENT_RECORDER_HOURLY_STATISTICS_GENERATED)
-    await hass.async_settle()
+    setup = await platform()
+    setup.hass.bus.async_fire(EVENT_RECORDER_HOURLY_STATISTICS_GENERATED)
+    await setup.hass.async_settle()
 
-    assert await enea_prices.async_unload_entry(hass, entry)
+    assert await enea_prices.async_unload_entry(setup.hass, setup.entry)

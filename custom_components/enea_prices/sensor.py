@@ -72,26 +72,13 @@ async def async_setup_entry(
         ),
     ]
 
-    # --- Static sensors (reflect current period) ---
+    # --- Static sensors (one rate each, read from the period in force) ---
 
-    def _pv(zone: Zone, attr: str) -> float | None:
-        """Get a rounded value from the current period, or None."""
-        if period is None or zone not in period.zones:
-            return None
-        val = getattr(period.zones[zone], attr)
-        return round(val, 4) if isinstance(val, float) else val
-
-    def _mv(monthly_attr: str) -> float | None:
-        """Get a monthly fee value from the current period, or None."""
-        if period is None:
-            return None
-        return getattr(period.monthly, monthly_attr)
-
-    def _s(key: str, value: float | None, *, category: EntityCategory | None = None, unit: str = UNIT_PRICE) -> EneaPricesStaticSensor:
-        """Build a static sensor with the given key, value and optional entity category."""
+    def _s(key: str, zone: Zone, attr: str, *, category: EntityCategory | None = None) -> EneaPricesStaticSensor:
+        """Build a rate sensor for one zone attribute, with an optional category."""
         return EneaPricesStaticSensor(
             group=group, key=key, translation_key=key,
-            unit=unit, value=value, entity_category=category,
+            unit=UNIT_PRICE, zone=zone, attr=attr, entity_category=category,
         )
 
     # Per-zone static sensors – data-driven (obsługuje G11/G12/G12w)
@@ -101,18 +88,18 @@ async def async_setup_entry(
     per_zone: list[EneaPricesStaticSensor] = []
     for zone in active_zones:
         per_zone += [
-            _s(f"{zone}_price_energy",   _pv(zone, "energy")),
-            _s(f"{zone}_price_total",    _pv(zone, "total")),
-            _s(f"{zone}_distribution",   _pv(zone, "total_distribution"),  category=EntityCategory.DIAGNOSTIC),
-            _s(f"{zone}_network_fee",    _pv(zone, "variable_network"),    category=EntityCategory.DIAGNOSTIC),
+            _s(f"{zone}_price_energy",   zone, "energy"),
+            _s(f"{zone}_price_total",    zone, "total"),
+            _s(f"{zone}_distribution",   zone, "total_distribution",  category=EntityCategory.DIAGNOSTIC),
+            _s(f"{zone}_network_fee",    zone, "variable_network",    category=EntityCategory.DIAGNOSTIC),
         ]
 
     static_sensors: list[EneaPricesStaticSensor | EneaPricesDateSensor | EneaPricesMonthlyFeeSensor] = [
         *per_zone,
         # Stawki jednakowe we wszystkich strefach (diagnostic)
-        _s("quality_fee",      _pv(first_zone, "quality"),      category=EntityCategory.DIAGNOSTIC),
-        _s("oze_fee",          _pv(first_zone, "oze"),          category=EntityCategory.DIAGNOSTIC),
-        _s("cogeneration_fee", _pv(first_zone, "cogeneration"), category=EntityCategory.DIAGNOSTIC),
+        _s("quality_fee",      first_zone, "quality",      category=EntityCategory.DIAGNOSTIC),
+        _s("oze_fee",          first_zone, "oze",          category=EntityCategory.DIAGNOSTIC),
+        _s("cogeneration_fee", first_zone, "cogeneration", category=EntityCategory.DIAGNOSTIC),
         # Opłaty miesięczne (personalised, in zł/miesiąc)
         EneaPricesMonthlyFeeSensor(group=group, key="monthly_network_fixed", translation_key="monthly_network_fixed",
                                    value_fn=lambda m: m.get_network_fixed(phases)),
@@ -168,17 +155,30 @@ async def async_setup_entry(
     zone_change_hours = period_for_listeners.get_zone_change_hours() if period_for_listeners else []
 
     @callback
-    def _on_change(_now: object) -> None:
-        """Push updated state to all dynamic sensors on zone boundary or period change."""
+    def _on_zone_change(_now: object) -> None:
+        """Push updated state to all dynamic sensors on a zone boundary."""
         for sensor in dynamic_sensors:
             sensor.async_write_ha_state()
 
     for hour in zone_change_hours:
-        unsub = async_track_time_change(hass, _on_change, hour=hour, minute=0, second=0)
+        unsub = async_track_time_change(
+            hass, _on_zone_change, hour=hour, minute=0, second=0
+        )
         entry.runtime_data.unsub_listeners.append(unsub)
 
-    # Midnight refresh handles period transitions (e.g. Feb 1 quality fee change)
-    unsub = async_track_time_change(hass, _on_change, hour=0, minute=0, second=0)
+    @callback
+    def _on_midnight(_now: object) -> None:
+        """Push every sensor's state, in case a new tariff period starts today.
+
+        Each sensor reads the period in force whenever its state is written, so
+        without this the rates, the monthly fees and the validity dates would
+        all keep reporting the period that happened to be current at setup —
+        including after the table has run out (e.g. the Feb 1 quality fee).
+        """
+        for sensor in (*dynamic_sensors, *static_sensors):
+            sensor.async_write_ha_state()
+
+    unsub = async_track_time_change(hass, _on_midnight, hour=0, minute=0, second=0)
     entry.runtime_data.unsub_listeners.append(unsub)
 
 
@@ -228,7 +228,14 @@ class EneaPricesDynamicSensor(SensorEntity):
 
 
 class EneaPricesStaticSensor(SensorEntity):
-    """Sensor showing a fixed value from the currently active tariff period."""
+    """Sensor showing one per-kWh rate of the tariff period in force today.
+
+    The rate is read on every state write rather than captured at setup.  It
+    used to be captured, which froze the value for the lifetime of the config
+    entry: a period boundary changed the rates without the sensors noticing,
+    and once the table ran out they kept reporting the last year they knew
+    instead of nothing at all.
+    """
 
     _attr_has_entity_name = True
     _attr_suggested_display_precision = 4
@@ -240,15 +247,27 @@ class EneaPricesStaticSensor(SensorEntity):
         key: str,
         translation_key: str,
         unit: str,
-        value: float | None,
+        zone: Zone,
+        attr: str,
         entity_category: EntityCategory | None = None,
     ) -> None:
+        self._group = group
+        self._zone = zone
+        self._rate_attr = attr
         self._attr_unique_id = f"enea_prices-{group.name}-{key}"
         self._attr_translation_key = translation_key
         self._attr_native_unit_of_measurement = unit
-        self._attr_native_value = value
         self._attr_entity_category = entity_category
         self._attr_device_info = _build_device_info(group)
+
+    @property
+    def native_value(self) -> float | None:
+        """Return this zone's rate today, or None outside the tariff table."""
+        period = self._group.get_current_period()
+        if period is None or self._zone not in period.zones:
+            return None
+        value = getattr(period.zones[self._zone], self._rate_attr)
+        return round(value, 4) if isinstance(value, float) else value
 
 
 class EneaPricesMonthlyFeeSensor(SensorEntity):

@@ -141,6 +141,67 @@ def stats_store() -> StatsStore:
     return StatsStore()
 
 
+@dataclass
+class PlatformSetup:
+    """What the sensor platform did while it was being set up."""
+
+    hass: FakeHass
+    entry: FakeConfigEntry
+    injections: list[Any]
+    """One entry per statistics injection the platform asked for."""
+    entities: list[Any]
+    at_hour: dict[int, list[Any]]
+    """The callbacks the platform scheduled, by the hour they run at."""
+
+    def sensor(self, key: str) -> Any:
+        """Return the entity registered under a key, e.g. "quality_fee"."""
+        suffix = f"-{key}"
+        found = [e for e in self.entities if str(e.unique_id).endswith(suffix)]
+
+        assert len(found) == 1, f"expected one entity for {key}, got {found}"
+        return found[0]
+
+
+@pytest.fixture
+def platform(monkeypatch: pytest.MonkeyPatch):
+    """Set the sensor platform up against fakes and report what it did."""
+    # Imported here so they are resolved after the path above has been set up.
+    from custom_components import enea_prices  # noqa: PLC0415
+    from custom_components.enea_prices import sensor as prices_sensor  # noqa: PLC0415
+    from custom_components.enea_prices.const import CONF_TARIFF  # noqa: PLC0415
+    from custom_components.enea_prices.tariffs import TARIFFS  # noqa: PLC0415
+
+    injections: list[Any] = []
+    at_hour: dict[int, list[Any]] = {}
+
+    async def _record_injection(hass: Any, group: Any) -> None:
+        """Stand in for the injection, which has tests of its own."""
+        injections.append(group)
+
+    def _record_time_change(hass: Any, action: Any, **when: int) -> Callable[[], None]:
+        """Record a scheduled callback instead of arming a real timer."""
+        at_hour.setdefault(when["hour"], []).append(action)
+        return lambda: None
+
+    monkeypatch.setattr(
+        prices_sensor, "async_inject_price_statistics", _record_injection
+    )
+    monkeypatch.setattr(prices_sensor, "async_track_time_change", _record_time_change)
+
+    async def _setup(tariff: str = "G12w") -> PlatformSetup:
+        entry = FakeConfigEntry(domain="enea_prices", data={CONF_TARIFF: tariff})
+        entry.runtime_data = enea_prices.EneaPricesRuntimeData(
+            tariff=TARIFFS[tariff], phases=1, annual_kwh=2000, billing_months=6
+        )
+        hass = FakeHass([entry])
+        entities: list[Any] = []
+        await prices_sensor.async_setup_entry(hass, entry, entities.extend)
+        await hass.async_settle()
+        return PlatformSetup(hass, entry, injections, entities, at_hour)
+
+    return _setup
+
+
 class _Recorder:
     """Answers recorder queries from a set of stored hour starts.
 
