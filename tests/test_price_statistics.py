@@ -2,69 +2,12 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
 
 import pytest
-from conftest import StatsStore
 
 from custom_components.enea_prices import statistics as price_stats
 
 ENTITY = "sensor.enea_ceny_g12w_peak_zone_energy_price_netto"
-
-
-class _Recorder:
-    """Answers recorder queries from a set of stored hour starts.
-
-    late, when given, is a row committed between the two queries the code
-    makes: the window read does not see it, the newest-entry read does.
-    """
-
-    def __init__(
-        self,
-        stored: list[datetime.datetime],
-        late: datetime.datetime | None = None,
-    ) -> None:
-        self.stored = sorted(stored)
-        self.late = late
-
-    async def async_add_executor_job(self, target: Any, *args: Any) -> Any:
-        """Run the query inline."""
-        return target(*args)
-
-    def last(self, hass: Any, count: int, sid: str, convert: bool, types: set) -> dict:
-        """Newest entry first, mirroring get_last_statistics."""
-        newest = self.late or (self.stored[-1] if self.stored else None)
-        if newest is None:
-            return {}
-        return {sid: [{"start": newest.timestamp()}]}
-
-    def during(self, hass: Any, start: Any, end: Any, ids: set, *rest: Any) -> dict:
-        """Ascending entries inside [start, end)."""
-        sid = next(iter(ids))
-        rows = [{"start": dt.timestamp()} for dt in self.stored if start <= dt < end]
-        return {sid: rows} if rows else {}
-
-
-@pytest.fixture
-def wired(monkeypatch: pytest.MonkeyPatch, stats_store: StatsStore):
-    """Wire the module to an in-memory recorder and capture writes."""
-
-    def _wire(
-        stored: list[datetime.datetime],
-        late: datetime.datetime | None = None,
-    ) -> StatsStore:
-        rec = _Recorder(stored, late)
-        monkeypatch.setattr(price_stats, "get_instance", lambda hass: rec)
-        monkeypatch.setattr(price_stats, "statistics_during_period", rec.during, raising=False)
-        # Kept wired so the pre-fix code path runs too and the regression test
-        # fails for the defect itself, not for a missing stub.
-        monkeypatch.setattr(price_stats, "get_last_statistics", rec.last, raising=False)
-        monkeypatch.setattr(
-            price_stats, "async_import_statistics", stats_store.import_statistics
-        )
-        return stats_store
-
-    return _wire
 
 
 def _local_dates(starts: list[datetime.datetime]) -> set[datetime.date]:

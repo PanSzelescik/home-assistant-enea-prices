@@ -7,7 +7,9 @@ keeps the suite independent of a version-pinned Home Assistant test harness.
 """
 from __future__ import annotations
 
+import datetime
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -51,6 +53,7 @@ class _FakeConfigEntries:
     def __init__(self, entries: list[FakeConfigEntry]) -> None:
         self._entries = entries
         self.reloaded: list[str] = []
+        self.unloaded: list[str] = []
 
     def async_entries(self, domain: str) -> list[FakeConfigEntry]:
         """Return the entries registered for a domain."""
@@ -60,17 +63,60 @@ class _FakeConfigEntries:
         """Record a reload request instead of performing one."""
         self.reloaded.append(entry_id)
 
+    async def async_unload_platforms(
+        self, entry: FakeConfigEntry, platforms: list[Any]
+    ) -> bool:
+        """Record an unload request instead of performing one."""
+        self.unloaded.append(entry.entry_id)
+        return True
+
+
+class FakeBus:
+    """Minimal hass.bus surface: one-shot listeners a test can fire.
+
+    Home Assistant only logs an exception when asked to remove a listener that
+    is no longer registered, which a test would not notice.  This raises
+    instead, so removing a listener twice fails the test that does it.
+    """
+
+    def __init__(self) -> None:
+        self.listeners: dict[str, list[Any]] = {}
+
+    def async_listen_once(self, event_type: str, listener: Any) -> Callable[[], None]:
+        """Register a listener that is dropped as soon as it is fired."""
+        self.listeners.setdefault(event_type, []).append(listener)
+
+        def _remove() -> None:
+            registered = self.listeners.get(event_type, [])
+            if listener not in registered:
+                raise LookupError(f"no listener registered for {event_type}")
+            registered.remove(listener)
+
+        return _remove
+
+    def async_fire(self, event_type: str) -> None:
+        """Fire the event, dropping every one-shot listener it reaches."""
+        for listener in self.listeners.pop(event_type, []):
+            listener(object())
+
 
 class FakeHass:
-    """Minimal hass object: config entries plus a task runner that records."""
+    """Minimal hass object: config entries, an event bus and a task recorder."""
 
     def __init__(self, entries: list[FakeConfigEntry] | None = None) -> None:
         self.config_entries = _FakeConfigEntries(entries or [])
+        self.bus = FakeBus()
         self.tasks: list[Any] = []
 
     def async_create_task(self, coro: Any) -> None:
         """Keep the coroutine so the test can await it deliberately."""
         self.tasks.append(coro)
+
+    async def async_settle(self) -> None:
+        """Await everything scheduled so far, as the event loop would."""
+        pending, self.tasks = self.tasks, []
+        for coro in pending:
+            await coro
 
 
 @dataclass
@@ -93,3 +139,60 @@ class StatsStore:
 def stats_store() -> StatsStore:
     """Return a fresh capture of recorder writes."""
     return StatsStore()
+
+
+class _Recorder:
+    """Answers recorder queries from a set of stored hour starts.
+
+    late, when given, is a row committed between the two queries the code
+    makes: the window read does not see it, the newest-entry read does.
+    """
+
+    def __init__(
+        self,
+        stored: list[datetime.datetime],
+        late: datetime.datetime | None = None,
+    ) -> None:
+        self.stored = sorted(stored)
+        self.late = late
+
+    async def async_add_executor_job(self, target: Any, *args: Any) -> Any:
+        """Run the query inline."""
+        return target(*args)
+
+    def last(self, hass: Any, count: int, sid: str, convert: bool, types: set) -> dict:
+        """Newest entry first, mirroring get_last_statistics."""
+        newest = self.late or (self.stored[-1] if self.stored else None)
+        if newest is None:
+            return {}
+        return {sid: [{"start": newest.timestamp()}]}
+
+    def during(self, hass: Any, start: Any, end: Any, ids: set, *rest: Any) -> dict:
+        """Ascending entries inside [start, end)."""
+        sid = next(iter(ids))
+        rows = [{"start": dt.timestamp()} for dt in self.stored if start <= dt < end]
+        return {sid: rows} if rows else {}
+
+
+@pytest.fixture
+def wired(monkeypatch: pytest.MonkeyPatch, stats_store: StatsStore):
+    """Wire the statistics module to an in-memory recorder and capture writes."""
+    # Imported here so it is resolved after the path above has been set up.
+    from custom_components.enea_prices import statistics as price_stats  # noqa: PLC0415
+
+    def _wire(
+        stored: list[datetime.datetime],
+        late: datetime.datetime | None = None,
+    ) -> StatsStore:
+        rec = _Recorder(stored, late)
+        monkeypatch.setattr(price_stats, "get_instance", lambda hass: rec)
+        monkeypatch.setattr(price_stats, "statistics_during_period", rec.during, raising=False)
+        # Kept wired so the pre-fix code path runs too and the regression test
+        # fails for the defect itself, not for a missing stub.
+        monkeypatch.setattr(price_stats, "get_last_statistics", rec.last, raising=False)
+        monkeypatch.setattr(
+            price_stats, "async_import_statistics", stats_store.import_statistics
+        )
+        return stats_store
+
+    return _wire

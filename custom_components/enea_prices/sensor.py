@@ -7,8 +7,8 @@ from datetime import date
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_RECORDER_HOURLY_STATISTICS_GENERATED, EntityCategory
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_change
@@ -130,6 +130,38 @@ async def async_setup_entry(
 
     async_add_entities(dynamic_sensors + static_sensors)
     hass.async_create_task(async_inject_price_statistics(hass, group))
+
+    # The injection above writes nothing past the newest stored statistic, so
+    # the hours an installation was down for are skipped: right after a start
+    # that boundary still sits before the downtime, leaving the whole gap on
+    # the far side of it.  One hour compiled by the recorder moves the boundary
+    # to now and turns those hours into interior gaps, which the same code
+    # already fills — so give it a second chance as soon as that happens.
+    gap_fill_pending = True
+
+    @callback
+    def _fill_gaps_once_the_recorder_moves(_event: Event) -> None:
+        """Inject again now that the recorder has closed a full hour."""
+        nonlocal gap_fill_pending
+        gap_fill_pending = False  # async_listen_once unsubscribed itself
+        hass.async_create_task(async_inject_price_statistics(hass, group))
+
+    unsub_gap_fill = hass.bus.async_listen_once(
+        EVENT_RECORDER_HOURLY_STATISTICS_GENERATED, _fill_gaps_once_the_recorder_moves
+    )
+
+    @callback
+    def _drop_gap_fill_listener() -> None:
+        """Unsubscribe the one-shot listener, unless it has already fired.
+
+        Removing a listener that is no longer registered logs an exception, and
+        the event arrives within the hour, so an entry unloaded any later would
+        report an error for a listener that had already done its job.
+        """
+        if gap_fill_pending:
+            unsub_gap_fill()
+
+    entry.runtime_data.unsub_listeners.append(_drop_gap_fill_listener)
 
     # Refresh dynamic sensors at zone boundaries
     period_for_listeners = period or (group.periods[0] if group.periods else None)
