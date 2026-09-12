@@ -8,5 +8,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/PanSzelescik/home-assistant-enea-prices/issues",
   "requirements": ["holidays==0.104"],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
