@@ -215,8 +215,11 @@ class TariffGroup:
 #   Dzień: 06:00–13:00 i 15:00–22:00
 #
 # Źródła:
-#   Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
-#   Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
+#   2026:
+#     Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
+#     Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
+#   2025: jak dla G12w poniżej (te same decyzje URE i ta sama cena maksymalna;
+#         zasada strefa-po-strefie potwierdzona fakturami G12w).
 # ---------------------------------------------------------------------------
 
 _G12_SCHEDULE = [
@@ -226,6 +229,38 @@ _G12_SCHEDULE = [
     ZoneScheduleEntry(Zone.DAY, 15, 22),
     ZoneScheduleEntry(Zone.NIGHT, 22, 24),
 ]
+
+_G12_MONTHLY_2025_H1 = MonthlyFees(
+    network_fixed_1phase=9.34,
+    network_fixed_3phase=14.18,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=0.0,
+    capacity_500_1200=0.0,
+    capacity_1200_2800=0.0,
+    capacity_gt2800=0.0,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
+
+_G12_MONTHLY_2025_H2 = MonthlyFees(
+    network_fixed_1phase=9.34,
+    network_fixed_3phase=14.18,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=2.86,
+    capacity_500_1200=6.86,
+    capacity_1200_2800=11.44,
+    capacity_gt2800=16.01,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
 
 _G12_MONTHLY_2026 = MonthlyFees(
     network_fixed_1phase=9.59,
@@ -247,6 +282,75 @@ _G12_MONTHLY_2026 = MonthlyFees(
 TARIFF_G12 = TariffGroup(
     name="G12",
     periods=[
+        # 1.01–30.06.2025: cena maksymalna w dzień (taryfowa 0,7506), opłata mocowa zawieszona
+        TariffPeriod(
+            valid_from=date(2025, 1, 1),
+            valid_until=date(2025, 6, 30),
+            monthly=_G12_MONTHLY_2025_H1,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2779,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+                Zone.NIGHT: ZonePricing(
+                    energy=0.4056,
+                    variable_network=0.0913,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+            },
+            schedule=_G12_SCHEDULE,
+        ),
+        # 1.07–30.09.2025: powrót opłaty mocowej
+        TariffPeriod(
+            valid_from=date(2025, 7, 1),
+            valid_until=date(2025, 9, 30),
+            monthly=_G12_MONTHLY_2025_H2,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2779,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+                Zone.NIGHT: ZonePricing(
+                    energy=0.4056,
+                    variable_network=0.0913,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+            },
+            schedule=_G12_SCHEDULE,
+        ),
+        # 1.10–31.12.2025: niższa cena nocna (dzienna taryfowa 0,6815, nadal powyżej maksymalnej)
+        TariffPeriod(
+            valid_from=date(2025, 10, 1),
+            valid_until=date(2025, 12, 31),
+            monthly=_G12_MONTHLY_2025_H2,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2779,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+                Zone.NIGHT: ZonePricing(
+                    energy=0.3840,
+                    variable_network=0.0913,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+            },
+            schedule=_G12_SCHEDULE,
+        ),
         # Styczeń 2026: stawka jakościowa 0.0331
         TariffPeriod(
             valid_from=date(2026, 1, 1),
@@ -302,13 +406,48 @@ TARIFF_G12 = TariffGroup(
 # Jedna strefa całodobowa.
 #
 # Źródła:
-#   Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
-#   Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
+#   2026:
+#     Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
+#     Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
+#   2025: jak dla G12w poniżej (te same decyzje URE i ta sama cena maksymalna;
+#         zasada strefa-po-strefie potwierdzona fakturami G12w).
 # ---------------------------------------------------------------------------
 
 _G11_SCHEDULE = [
     ZoneScheduleEntry(Zone.DAY, 0, 24),
 ]
+
+_G11_MONTHLY_2025_H1 = MonthlyFees(
+    network_fixed_1phase=7.25,
+    network_fixed_3phase=10.14,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=0.0,
+    capacity_500_1200=0.0,
+    capacity_1200_2800=0.0,
+    capacity_gt2800=0.0,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
+
+_G11_MONTHLY_2025_H2 = MonthlyFees(
+    network_fixed_1phase=7.25,
+    network_fixed_3phase=10.14,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=2.86,
+    capacity_500_1200=6.86,
+    capacity_1200_2800=11.44,
+    capacity_gt2800=16.01,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
 
 _G11_MONTHLY_2026 = MonthlyFees(
     network_fixed_1phase=7.45,
@@ -329,6 +468,38 @@ _G11_MONTHLY_2026 = MonthlyFees(
 TARIFF_G11 = TariffGroup(
     name="G11",
     periods=[
+        # 1.01–30.06.2025: cena maksymalna (taryfowa 0,6265), opłata mocowa zawieszona
+        TariffPeriod(
+            valid_from=date(2025, 1, 1),
+            valid_until=date(2025, 6, 30),
+            monthly=_G11_MONTHLY_2025_H1,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2456,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+            },
+            schedule=_G11_SCHEDULE,
+        ),
+        # 1.07–31.12.2025: powrót opłaty mocowej (taryfowa od 1.10 0,5760, nadal powyżej maksymalnej)
+        TariffPeriod(
+            valid_from=date(2025, 7, 1),
+            valid_until=date(2025, 12, 31),
+            monthly=_G11_MONTHLY_2025_H2,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2456,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+            },
+            schedule=_G11_SCHEDULE,
+        ),
         # Styczeń 2026: stawka jakościowa 0.0331
         TariffPeriod(
             valid_from=date(2026, 1, 1),
