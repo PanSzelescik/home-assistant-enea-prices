@@ -25,11 +25,12 @@ znak, datę i okres obowiązywania — nie same stawki.
 Dotyczy to również dystrybucji: stawki sieciowe, jakościowa, abonament i opłaty stałe
 pochodzą z taryfy **Enea Operator**, zatwierdzanej odrębnymi decyzjami, których tu nie ma.
 
-## Dlaczego tabela zaczyna się w 2025 r.
+## Dlaczego tabela zaczyna się 1 lipca 2024 r.
 
 Model danych integracji (`ZonePricing` — jedna cena na strefę w danym okresie) odwzorowuje
-wyłącznie mrożenia oparte na **jednej cenie maksymalnej bez limitu zużycia**, czyli okres
-od 1 lipca 2024 r. wzwyż.
+wyłącznie mrożenia oparte na **jednej cenie maksymalnej bez limitu zużycia**. Taki mechanizm
+wprowadziła dopiero ustawa z 23 maja 2024 r. o bonie energetycznym, od 1 lipca 2024 r. —
+i to jest dolna granica tabeli.
 
 Wcześniejsze mechanizmy osłonowe były oparte na **limitach zużycia**, czego ten model nie
 wyraża:

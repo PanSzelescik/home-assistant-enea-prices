@@ -76,7 +76,7 @@ z `source="recorder"` (bez tego HA odrzuca import statystyk).
 
 `statistics.py` wstrzykuje statystyki godzinowe (mean = stała wartość ceny) przez
 `async_import_statistics` (source=`"recorder"`) dla każdego statycznego sensora cenowego per strefa.
-Statystyki obejmują **każdy** okres w `group.periods` — od `valid_from` najstarszego (1.01.2025)
+Statystyki obejmują **każdy** okres w `group.periods` — od `valid_from` najstarszego (1.07.2024)
 do wczoraj, więc dopisanie okresu wstecz backfilluje go przy najbliższym starcie.
 Rząd wielkości jednorazowego backfillu roku: 8760 h × `len(ZONE_PRICE_ATTRS)` × liczba stref
 (dla G12/G12w ≈ 35 tys. wierszy).
@@ -109,12 +109,18 @@ Wpływają na sensory: `monthly_network_fixed`, `monthly_subscription`, `monthly
 Dopisz `TariffPeriod` do listy `periods` w odpowiednim `TariffGroup`. Sensory dynamiczne
 przejdą na nowe ceny automatycznie o północy w dniu `valid_from` nowego okresu.
 
-## Mrożenie cen 2025
+## Mrożenie cen 2024–2025
 
-Cena maksymalna **0,5000 zł/kWh netto** (bez VAT i akcyzy) obowiązywała 1.01–31.12.2025,
+Cena maksymalna **0,5000 zł/kWh netto** (bez VAT i akcyzy) obowiązywała **1.07.2024–31.12.2025**,
 bez limitów zużycia, wyłącznie dla energii czynnej — dystrybucja naliczana normalnie.
 Ceny taryfowe Enea S.A. były wyższe, więc tabela zawiera cenę efektywną (patrz ostrzeżenie
 przy modelu danych).
+
+**Dolna granica tabeli to 1.07.2024** i nie da się jej obniżyć bez zmiany modelu: mrożenia
+z 2023 i I poł. 2024 opierały się na rocznych limitach zużycia zależnych od oświadczeń odbiorcy
+(niepełnosprawność, KDR, rolnik), a cena zmieniała się w momencie przekroczenia limitu.
+W 2022 doszłaby jeszcze tarcza antyinflacyjna — obniżony VAT i zerowa akcyza, podczas gdy
+`const.py` trzyma `VAT_RATE` i `AKCYZA` jako stałe. Szczegóły: `docs/decyzje-ure/README.md`.
 
 Dla G12 i G12w Enea stosowała cap **dwustopniowo, w skali miesiąca**: (1) gdy średnia cena
 taryfowa ważona zużyciem we wszystkich strefach < 0,500 → ceny taryfowe w każdej strefie;
@@ -144,6 +150,17 @@ tego katalogu.
   decyzja DRE.WRE.4211.38.12.2025.MKa4/AKr3 z 30.09.2025
 - **Stawka jakościowa**: 0.0321 zł/kWh · **OZE**: 0.0035 · **kogeneracyjna**: 0.0030
 - **Opłata mocowa od 1.07.2025**: Informacja Prezesa URE nr 56/2024 (2.86 / 6.86 / 11.44 / 16.01)
+
+**II połowa 2024, G11/G12/G12w**
+
+- **Dystrybucja**: Wyciąg z taryfy ENEA Operator od 1.07.2024 — zmienne 0.2486 (G11),
+  0.2817/0.0927 (G12), 0.2736/0.0825 (G12w); **jakościowa 0.0314**
+- **Sprzedaż energii**: ta sama zmiana taryfy z 28.06.2024 co w 2025 (ceny taryfowe niezmienne
+  do 30.09.2025)
+- **OZE 0.0000** i **kogeneracyjna 0.00618** (6,18 zł/MWh) — inaczej niż w 2025 (0.0035 / 0.0030)
+- **Opłata mocowa 0.00 zł/mies.** przez cały okres — art. 28 ustawy z 23.05.2024 o bonie
+  energetycznym
+- **Opłata przejściowa**: 0.02 / 0.10 / 0.33, jak w 2025
 
 **Weryfikacja cen**: dokumenty „Dodatkowa informacja ENEA S.A. o cenach BRUTTO" podają ceny
 brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.005`.

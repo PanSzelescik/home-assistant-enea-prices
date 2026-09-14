@@ -70,7 +70,7 @@ Widoczne w zakładce **Diagnostics** urządzenia (ukryte w głównym widoku).
 ## Koszty w dashboardzie Energia
 
 Integracja automatycznie wstrzykuje do recordera godzinowe statystyki cen (netto, zł/kWh)
-dla każdego statycznego sensora per strefa, obejmując **wszystkie okresy taryfowe z tabeli — od 1 stycznia 2025**.
+dla każdego statycznego sensora per strefa, obejmując **wszystkie okresy taryfowe z tabeli — od 1 lipca 2024**.
 Dzięki temu koszty są dostępne retroaktywnie — nawet jeśli integracja została zainstalowana później.
 
 > Pierwszy start po aktualizacji rozszerzającej tabelę o kolejny rok wstrzykuje jednorazowo
@@ -111,16 +111,15 @@ Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-ene
 | G12 | Dwustrefowa (dzień/noc) | ✅ Dostępna |
 | G12w | Dwustrefowa weekendowa (szczyt/poza szczytem) | ✅ Dostępna |
 
-## Ceny za 2025 i rządowe mrożenie
+## Ceny historyczne i rządowe mrożenie
 
-Tabela obejmuje również cały 2025 rok, więc dashboard Energia policzy koszty retroaktywnie
-od 1 stycznia 2025.
+Tabela sięga **1 lipca 2024**, więc dashboard Energia policzy koszty retroaktywnie od tej daty.
 
-W 2025 r. obowiązywała ustawowa **cena maksymalna 0,5000 zł/kWh netto** (bez VAT i akcyzy),
-**bez limitów zużycia**, dotycząca wyłącznie energii czynnej — opłaty dystrybucyjne naliczano
-normalnie, według taryfy Enea Operator. Ceny taryfowe Enea S.A. były wyższe od capu, więc
-w kolumnie „cena energii" tabela podaje **cenę efektywną po zastosowaniu ceny maksymalnej**,
-a nie cenę z cennika:
+Od 1 lipca 2024 do 31 grudnia 2025 obowiązywała ustawowa **cena maksymalna 0,5000 zł/kWh netto**
+(bez VAT i akcyzy), **bez limitów zużycia**, dotycząca wyłącznie energii czynnej — opłaty
+dystrybucyjne naliczano normalnie, według taryfy Enea Operator. Ceny taryfowe Enea S.A. były
+wyższe od capu, więc w kolumnie „cena energii" tabela podaje **cenę efektywną po zastosowaniu
+ceny maksymalnej**, a nie cenę z cennika:
 
 | Grupa / strefa | Taryfowa do 30.09 | Taryfowa od 1.10 | W tabeli |
 |----------------|------------------:|-----------------:|---------:|
@@ -130,8 +129,24 @@ a nie cenę z cennika:
 | G12w szczyt | 0,8404 | 0,7676 | 0,5000 |
 | G12w poza szczytem | 0,4171 | 0,3940 | bez zmian *(poniżej capu)* |
 
-Opłata mocowa była **zawieszona od 1 stycznia do 30 czerwca 2025**, a opłata przejściowa
-jeszcze obowiązywała — zniesiono ją dopiero od 2026.
+Ceny taryfowe były te same w II połowie 2024 i do 30.09.2025 — zmieniła je dopiero decyzja
+z 30.09.2025. Różnią się natomiast składniki dystrybucyjne i opłaty doliczane do rachunku:
+
+| | II poł. 2024 | 2025 |
+|---|---|---|
+| Opłata mocowa | **0 zł** (zawieszona cały okres) | **0 zł** do 30.06, potem 2,86 / 6,86 / 11,44 / 16,01 zł/mies. |
+| Opłata OZE | **0,0000** zł/kWh | 0,0035 zł/kWh |
+| Opłata kogeneracyjna | 0,00618 zł/kWh | 0,0030 zł/kWh |
+| Stawka jakościowa | 0,0314 zł/kWh | 0,0321 zł/kWh |
+| Składnik zmienny G11 | 0,2486 zł/kWh | 0,2456 zł/kWh |
+
+Opłata przejściowa (0,02 / 0,10 / 0,33 zł/mies.) obowiązywała w obu okresach — zniesiono ją
+dopiero od 2026.
+
+Wcześniej niż 1 lipca 2024 tabela nie sięga: mrożenia z 2023 i I połowy 2024 były oparte na
+**rocznych limitach zużycia**, których wysokość zależała od oświadczeń odbiorcy, a cena zmieniała
+się w momencie przekroczenia limitu. Model danych integracji (jedna cena na strefę w okresie)
+tego nie wyrazi — szczegóły w [`docs/decyzje-ure/README.md`](docs/decyzje-ure/README.md).
 
 > **Ograniczenie dla G12 i G12w.** Enea stosowała cenę maksymalną dwustopniowo, w skali miesiąca:
 > jeżeli średnia cena taryfowa ważona zużyciem we wszystkich strefach była niższa od capu,
@@ -163,3 +178,12 @@ w katalogu [`docs/decyzje-ure/`](docs/decyzje-ure/).
   ograniczenie wysokości cen energii elektrycznej; sposób stosowania w taryfach strefowych —
   dodatkowa informacja Enea S.A. z 1.10.2025 o cenach brutto
 - Opłata mocowa: Informacja Prezesa URE nr 56/2024 (stawki obowiązywały też od 1.07.2025)
+
+**II połowa 2024**
+
+- Dystrybucja: Wyciąg z taryfy ENEA Operator obowiązującej od 1.07.2024
+- Sprzedaż energii: ta sama zmiana taryfy Enea S.A. z 28.06.2024 (obowiązywała do 31.12.2025)
+- Cena maksymalna: ustawa z 23 maja 2024 r. o bonie energetycznym — 500 zł/MWh bez względu
+  na zużycie, od 1.07.2024
+- Opłata mocowa: 0,00 zł/miesiąc od 1.07 do 31.12.2024 (art. 28 tej samej ustawy)
+- Opłata OZE 0,00 zł/MWh i kogeneracyjna 6,18 zł/MWh — za wyciągiem z taryfy
