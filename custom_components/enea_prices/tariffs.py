@@ -219,7 +219,7 @@ class TariffGroup:
 #     Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
 #     Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
 #   2025: jak dla G12w poniżej (te same decyzje URE i ta sama cena maksymalna;
-#         zasada strefa-po-strefie potwierdzona fakturami G12w).
+#         zasada strefa-po-strefie wprost w informacji Enea S.A. z 1.10.2025).
 # ---------------------------------------------------------------------------
 
 _G12_SCHEDULE = [
@@ -410,7 +410,7 @@ TARIFF_G12 = TariffGroup(
 #     Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
 #     Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
 #   2025: jak dla G12w poniżej (te same decyzje URE i ta sama cena maksymalna;
-#         zasada strefa-po-strefie potwierdzona fakturami G12w).
+#         zasada strefa-po-strefie wprost w informacji Enea S.A. z 1.10.2025).
 # ---------------------------------------------------------------------------
 
 _G11_SCHEDULE = [
@@ -484,9 +484,26 @@ TARIFF_G11 = TariffGroup(
             },
             schedule=_G11_SCHEDULE,
         ),
-        # 1.07–31.12.2025: powrót opłaty mocowej (taryfowa od 1.10 0,5760, nadal powyżej maksymalnej)
+        # 1.07–30.09.2025: powrót opłaty mocowej (taryfowa 0,6265, powyżej maksymalnej)
         TariffPeriod(
             valid_from=date(2025, 7, 1),
+            valid_until=date(2025, 9, 30),
+            monthly=_G11_MONTHLY_2025_H2,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2456,
+                    quality=0.0321,
+                    oze=0.0035,
+                    cogeneration=0.0030,
+                ),
+            },
+            schedule=_G11_SCHEDULE,
+        ),
+        # 1.10–31.12.2025: niższa cena taryfowa 0,5760 (decyzja URE z 30.09.2025),
+        # nadal powyżej maksymalnej, więc cena efektywna bez zmian
+        TariffPeriod(
+            valid_from=date(2025, 10, 1),
             valid_until=date(2025, 12, 31),
             monthly=_G11_MONTHLY_2025_H2,
             zones={
@@ -575,8 +592,10 @@ TARIFF_G11 = TariffGroup(
 #   (podana obok), a tabela zaniża koszt. G11 ma jedną strefę, więc próg
 #   nie występuje.
 #
-#   Stopień 2 oraz zawieszenie opłaty mocowej potwierdzone fakturami Enei
-#   dla G12w za 2025 r. Dla G12 stopień 2 przyjęto przez analogię – bez faktur.
+#   Oba stopnie są wprost zapisane w dodatkowej informacji Enea S.A. z dnia
+#   1.10.2025 o cenach brutto, w jednym punkcie obejmującym G12 i G12w razem –
+#   nie jest to analogia z jednej grupy na drugą. Stopień 2 oraz zawieszenie
+#   opłaty mocowej potwierdzone dodatkowo fakturami Enei dla G12w za 2025 r.
 # ---------------------------------------------------------------------------
 
 _WORKDAYS = frozenset({0, 1, 2, 3, 4})   # Pon–Pt

@@ -12,7 +12,7 @@ import datetime
 
 import pytest
 
-from custom_components.enea_prices.tariffs import TARIFFS, TariffGroup, Zone
+from custom_components.enea_prices.tariffs import TARIFFS, TariffGroup, TariffPeriod, Zone
 
 ONE_DAY = datetime.timedelta(days=1)
 
@@ -75,7 +75,6 @@ def test_the_table_stops_at_its_own_edges(name: str) -> None:
     assert group.get_period_for_date(last) is not None
 
 
-
 def test_every_group_covers_the_same_span() -> None:
     """A year added to one group must be added to all of them.
 
@@ -101,7 +100,7 @@ def test_every_group_prices_every_day_of_2025(name: str) -> None:
     assert unpriced == []
 
 
-def _period_on(name: str, day: datetime.date):
+def _period_on(name: str, day: datetime.date) -> TariffPeriod:
     (period,) = [p for p in TARIFFS[name].periods if p.valid_from <= day <= p.valid_until]
     return period
 
