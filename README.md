@@ -70,8 +70,11 @@ Widoczne w zakładce **Diagnostics** urządzenia (ukryte w głównym widoku).
 ## Koszty w dashboardzie Energia
 
 Integracja automatycznie wstrzykuje do recordera godzinowe statystyki cen (netto, zł/kWh)
-dla każdego statycznego sensora per strefa, obejmując **cały aktywny okres taryfowy od `valid_from`**.
-Dzięki temu koszty są dostępne retroaktywnie — nawet jeśli integracja została zainstalowana po starcie okresu.
+dla każdego statycznego sensora per strefa, obejmując **wszystkie okresy taryfowe z tabeli — od 1 stycznia 2025**.
+Dzięki temu koszty są dostępne retroaktywnie — nawet jeśli integracja została zainstalowana później.
+
+> Pierwszy start po aktualizacji rozszerzającej tabelę o kolejny rok wstrzykuje jednorazowo
+> kilkadziesiąt tysięcy wierszy statystyk i może chwilę potrwać. Kolejne starty dopisują tylko braki.
 
 Aby skonfigurować śledzenie kosztów w dashboardzie Energia:
 
@@ -108,9 +111,55 @@ Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-ene
 | G12 | Dwustrefowa (dzień/noc) | ✅ Dostępna |
 | G12w | Dwustrefowa weekendowa (szczyt/poza szczytem) | ✅ Dostępna |
 
-## Źródła danych (rok 2026)
+## Ceny za 2025 i rządowe mrożenie
+
+Tabela obejmuje również cały 2025 rok, więc dashboard Energia policzy koszty retroaktywnie
+od 1 stycznia 2025.
+
+W 2025 r. obowiązywała ustawowa **cena maksymalna 0,5000 zł/kWh netto** (bez VAT i akcyzy),
+**bez limitów zużycia**, dotycząca wyłącznie energii czynnej — opłaty dystrybucyjne naliczano
+normalnie, według taryfy Enea Operator. Ceny taryfowe Enea S.A. były wyższe od capu, więc
+w kolumnie „cena energii" tabela podaje **cenę efektywną po zastosowaniu ceny maksymalnej**,
+a nie cenę z cennika:
+
+| Grupa / strefa | Taryfowa do 30.09 | Taryfowa od 1.10 | W tabeli |
+|----------------|------------------:|-----------------:|---------:|
+| G11 całodobowa | 0,6265 | 0,5760 | 0,5000 |
+| G12 dzień | 0,7506 | 0,6815 | 0,5000 |
+| G12 noc | 0,4056 | 0,3840 | bez zmian *(poniżej capu)* |
+| G12w szczyt | 0,8404 | 0,7676 | 0,5000 |
+| G12w poza szczytem | 0,4171 | 0,3940 | bez zmian *(poniżej capu)* |
+
+Opłata mocowa była **zawieszona od 1 stycznia do 30 czerwca 2025**, a opłata przejściowa
+jeszcze obowiązywała — zniesiono ją dopiero od 2026.
+
+> **Ograniczenie dla G12 i G12w.** Enea stosowała cenę maksymalną dwustopniowo, w skali miesiąca:
+> jeżeli średnia cena taryfowa ważona zużyciem we wszystkich strefach była niższa od capu,
+> obowiązywały ceny taryfowe w **każdej** strefie; w przeciwnym razie każda strefa dostawała
+> niższą z dwóch cen. Tabela nie zna miesięcznego zużycia, więc koduje wyłącznie drugi przypadek.
+> Jest dokładna, gdy udział droższej strefy w miesiącu wynosi co najmniej **19,6 %** (G12w)
+> lub **27,4 %** (G12) do 30.09.2025 oraz **28,4 %** / **39,0 %** od 1.10.2025. Poniżej tych progów
+> realnie obowiązywały ceny taryfowe, a wyliczony koszt jest **zaniżony** — dotyczy to zwłaszcza
+> gospodarstw grzejących nocą, gdzie udział droższej strefy bywa niski.
+
+## Źródła danych
+
+Pełne teksty decyzji Prezesa URE dla taryf sprzedaży Enea S.A. znajdują się
+w katalogu [`docs/decyzje-ure/`](docs/decyzje-ure/).
+
+**Rok 2026**
 
 - Dystrybucja: Decyzja Prezesa URE z 17.12.2025 (ENEA Operator Sp. z o.o.)
 - Stawka jakościowa od 1.02.2026: decyzja URE z 16.01.2026
 - Sprzedaż energii: Taryfa Enea S.A. dla grup taryfowych G (od 01.01.2026)
 - Opłata przejściowa: zniesiona od 01.01.2026
+
+**Rok 2025**
+
+- Dystrybucja: Decyzja Prezesa URE nr DRE.WRE.4211.46.9.2024.MKa4 z 16.12.2024 (ENEA Operator)
+- Sprzedaż energii: Taryfa Enea S.A. dla grup G — decyzja DRE.WRE.4211.31.11.2024.JTr z 28.06.2024,
+  od 1.10.2025 decyzja DRE.WRE.4211.38.12.2025.MKa4/AKr3 z 30.09.2025
+- Cena maksymalna: ustawa z 27 października 2022 r. o środkach nadzwyczajnych mających na celu
+  ograniczenie wysokości cen energii elektrycznej; sposób stosowania w taryfach strefowych —
+  dodatkowa informacja Enea S.A. z 1.10.2025 o cenach brutto
+- Opłata mocowa: Informacja Prezesa URE nr 56/2024 (stawki obowiązywały też od 1.07.2025)

@@ -40,6 +40,11 @@ jako `round((pricing.energy + AKCYZA + pricing.total_distribution) * (1 + VAT_RA
 `ZoneScheduleEntry` ma opcjonalne `weekdays: frozenset[int] | None` (0=Pon, 6=Nd; None=każdy dzień).
 `Zone` enum: `DAY`, `NIGHT`, `PEAK`, `OFF_PEAK`.
 
+⚠️ **`energy` znaczy co innego w różnych okresach.** W okresach objętych rządowym mrożeniem
+(cały 2025) pole zawiera **cenę efektywną po zastosowaniu ceny maksymalnej**, a nie cenę
+z cennika Enea S.A.; od 2026 zawiera cenę taryfową. Cena taryfowa danego okresu jest podana
+w komentarzu obok wpisu. Szczegóły mechanizmu i progi dokładności — w komentarzu nad `TARIFF_G12W`.
+
 ## Strefy taryf
 
 **G11** – jedna strefa całodobowa (Zone.DAY 00:00–24:00)
@@ -71,7 +76,10 @@ z `source="recorder"` (bez tego HA odrzuca import statystyk).
 
 `statistics.py` wstrzykuje statystyki godzinowe (mean = stała wartość ceny) przez
 `async_import_statistics` (source=`"recorder"`) dla każdego statycznego sensora cenowego per strefa.
-Statystyki obejmują cały okres taryfowy od `valid_from` do wczoraj.
+Statystyki obejmują **każdy** okres w `group.periods` — od `valid_from` najstarszego (1.01.2025)
+do wczoraj, więc dopisanie okresu wstecz backfilluje go przy najbliższym starcie.
+Rząd wielkości jednorazowego backfillu roku: 8760 h × `len(ZONE_PRICE_ATTRS)` × liczba stref
+(dla G12/G12w ≈ 35 tys. wierszy).
 Wywołanie następuje automatycznie przy starcie integracji (`sensor.py:async_setup_entry`).
 Przy każdym uruchomieniu zapisywane są tylko godziny brakujące w oknie okresu
 (`statistics_during_period`), i wyłącznie te sprzed najnowszej zapisanej statystyki
@@ -101,13 +109,44 @@ Wpływają na sensory: `monthly_network_fixed`, `monthly_subscription`, `monthly
 Dopisz `TariffPeriod` do listy `periods` w odpowiednim `TariffGroup`. Sensory dynamiczne
 przejdą na nowe ceny automatycznie o północy w dniu `valid_from` nowego okresu.
 
-## Źródła danych (2026, G11/G12/G12w)
+## Mrożenie cen 2025
+
+Cena maksymalna **0,5000 zł/kWh netto** (bez VAT i akcyzy) obowiązywała 1.01–31.12.2025,
+bez limitów zużycia, wyłącznie dla energii czynnej — dystrybucja naliczana normalnie.
+Ceny taryfowe Enea S.A. były wyższe, więc tabela zawiera cenę efektywną (patrz ostrzeżenie
+przy modelu danych).
+
+Dla G12 i G12w Enea stosowała cap **dwustopniowo, w skali miesiąca**: (1) gdy średnia cena
+taryfowa ważona zużyciem we wszystkich strefach < 0,500 → ceny taryfowe w każdej strefie;
+(2) w przeciwnym razie każda strefa dostaje `min(cena_taryfowa, 0,500)`. Tabela koduje tylko
+stopień 2, bo nie zna zużycia — jest dokładna powyżej progów udziału droższej strefy:
+G12w 19,6 % / 28,4 %, G12 27,4 % / 39,0 % (odpowiednio do 30.09 i od 1.10.2025).
+Poniżej progu zaniża koszt. Pełny wywód w komentarzu nad `TARIFF_G12W`.
+
+Opłata mocowa zawieszona 1.01–30.06.2025; opłata przejściowa jeszcze obowiązywała.
+
+## Źródła danych
+
+Decyzje Prezesa URE dla taryf sprzedaży Enea S.A. (PDF) — `docs/decyzje-ure/`, indeks w `README.md`
+tego katalogu.
+
+**2026, G11/G12/G12w**
 
 - **Dystrybucja**: Decyzja Prezesa URE z dnia 17.12.2025 (ENEA Operator)
 - **Stawka jakościowa od 1.02.2026**: 0.0332 zł/kWh (poprzednio 0.0331)
 - **Sprzedaż energii**: Taryfa Enea S.A. dla grup G, od 01.01.2026
 - **Opłata przejściowa**: zniesiona od 1.01.2026
-- Wszystkie pliki PDF i podsumowania Gemini w katalogu głównym repozytorium
+
+**2025, G11/G12/G12w**
+
+- **Dystrybucja**: Decyzja Prezesa URE nr DRE.WRE.4211.46.9.2024.MKa4 z 16.12.2024 (ENEA Operator)
+- **Sprzedaż energii**: decyzja DRE.WRE.4211.31.11.2024.JTr z 28.06.2024; od 1.10.2025
+  decyzja DRE.WRE.4211.38.12.2025.MKa4/AKr3 z 30.09.2025
+- **Stawka jakościowa**: 0.0321 zł/kWh · **OZE**: 0.0035 · **kogeneracyjna**: 0.0030
+- **Opłata mocowa od 1.07.2025**: Informacja Prezesa URE nr 56/2024 (2.86 / 6.86 / 11.44 / 16.01)
+
+**Weryfikacja cen**: dokumenty „Dodatkowa informacja ENEA S.A. o cenach BRUTTO" podają ceny
+brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.005`.
 
 ## Obsługiwane taryfy
 
