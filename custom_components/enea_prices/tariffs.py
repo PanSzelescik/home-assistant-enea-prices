@@ -218,8 +218,9 @@ class TariffGroup:
 #   2026:
 #     Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
 #     Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
-#   2025: jak dla G12w poniżej (te same decyzje URE i ta sama cena maksymalna;
-#         zasada strefa-po-strefie wprost w informacji Enea S.A. z 1.10.2025).
+#   2024 (od 1.07) i 2025: jak dla G12w poniżej – te same decyzje URE i ta sama
+#         cena maksymalna; zasada strefa-po-strefie wprost w informacji
+#         Enea S.A. z 1.10.2025.
 # ---------------------------------------------------------------------------
 
 _G12_SCHEDULE = [
@@ -229,6 +230,22 @@ _G12_SCHEDULE = [
     ZoneScheduleEntry(Zone.DAY, 15, 22),
     ZoneScheduleEntry(Zone.NIGHT, 22, 24),
 ]
+
+_G12_MONTHLY_2024_H2 = MonthlyFees(
+    network_fixed_1phase=9.34,
+    network_fixed_3phase=14.18,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=0.0,
+    capacity_500_1200=0.0,
+    capacity_1200_2800=0.0,
+    capacity_gt2800=0.0,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
 
 _G12_MONTHLY_2025_H1 = MonthlyFees(
     network_fixed_1phase=9.34,
@@ -282,6 +299,30 @@ _G12_MONTHLY_2026 = MonthlyFees(
 TARIFF_G12 = TariffGroup(
     name="G12",
     periods=[
+        # 1.07–31.12.2024: cena maksymalna w dzień (taryfowa 0,7506), opłata mocowa zawieszona,
+        # opłata OZE zerowa, kogeneracyjna 6,18 zł/MWh
+        TariffPeriod(
+            valid_from=date(2024, 7, 1),
+            valid_until=date(2024, 12, 31),
+            monthly=_G12_MONTHLY_2024_H2,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2817,
+                    quality=0.0314,
+                    oze=0.0000,
+                    cogeneration=0.00618,
+                ),
+                Zone.NIGHT: ZonePricing(
+                    energy=0.4056,
+                    variable_network=0.0927,
+                    quality=0.0314,
+                    oze=0.0000,
+                    cogeneration=0.00618,
+                ),
+            },
+            schedule=_G12_SCHEDULE,
+        ),
         # 1.01–30.06.2025: cena maksymalna w dzień (taryfowa 0,7506), opłata mocowa zawieszona
         TariffPeriod(
             valid_from=date(2025, 1, 1),
@@ -409,13 +450,30 @@ TARIFF_G12 = TariffGroup(
 #   2026:
 #     Dystrybucja: Decyzja Prezesa URE z dnia 17.12.2025, ENEA Operator
 #     Sprzedaż:    Taryfa Enea S.A. dla grup taryfowych G
-#   2025: jak dla G12w poniżej (te same decyzje URE i ta sama cena maksymalna;
-#         zasada strefa-po-strefie wprost w informacji Enea S.A. z 1.10.2025).
+#   2024 (od 1.07) i 2025: jak dla G12w poniżej – te same decyzje URE i ta sama
+#         cena maksymalna; zasada strefa-po-strefie wprost w informacji
+#         Enea S.A. z 1.10.2025.
 # ---------------------------------------------------------------------------
 
 _G11_SCHEDULE = [
     ZoneScheduleEntry(Zone.DAY, 0, 24),
 ]
+
+_G11_MONTHLY_2024_H2 = MonthlyFees(
+    network_fixed_1phase=7.25,
+    network_fixed_3phase=10.14,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=0.0,
+    capacity_500_1200=0.0,
+    capacity_1200_2800=0.0,
+    capacity_gt2800=0.0,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
 
 _G11_MONTHLY_2025_H1 = MonthlyFees(
     network_fixed_1phase=7.25,
@@ -468,6 +526,23 @@ _G11_MONTHLY_2026 = MonthlyFees(
 TARIFF_G11 = TariffGroup(
     name="G11",
     periods=[
+        # 1.07–31.12.2024: cena maksymalna (taryfowa 0,6265), opłata mocowa zawieszona,
+        # opłata OZE zerowa, kogeneracyjna 6,18 zł/MWh
+        TariffPeriod(
+            valid_from=date(2024, 7, 1),
+            valid_until=date(2024, 12, 31),
+            monthly=_G11_MONTHLY_2024_H2,
+            zones={
+                Zone.DAY: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2486,
+                    quality=0.0314,
+                    oze=0.0000,
+                    cogeneration=0.00618,
+                ),
+            },
+            schedule=_G11_SCHEDULE,
+        ),
         # 1.01–30.06.2025: cena maksymalna (taryfowa 0,6265), opłata mocowa zawieszona
         TariffPeriod(
             valid_from=date(2025, 1, 1),
@@ -576,6 +651,19 @@ TARIFF_G11 = TariffGroup(
 #                  1.07.2024–31.12.2025 – Taryfa Enea S.A., pkt 5.2 w brzmieniu
 #                  z 30.09.2025.
 #     Opłata mocowa zawieszona 1.01–30.06.2025.
+#   2024 (od 1.07):
+#     Dystrybucja: Wyciąg z taryfy ENEA Operator obowiązującej od 1.07.2024 –
+#                  stawki sieciowe 0,2736 / 0,0825, jakościowa 0,0314,
+#                  opłata OZE 0,00 zł/MWh, kogeneracyjna 6,18 zł/MWh.
+#     Sprzedaż:    ceny taryfowe 0,8404 / 0,4171 zł/kWh (ta sama zmiana taryfy
+#                  z 28.06.2024 obowiązywała do 31.12.2025).
+#     Opłata mocowa 0,00 zł/miesiąc 1.07–31.12.2024 – art. 28 ustawy z dnia
+#     23.05.2024 o bonie energetycznym, przypis w wyciągu z taryfy.
+#
+#   Tabela nie obejmuje okresów sprzed 1.07.2024: wcześniejsze mrożenia były
+#   oparte na rocznych limitach zużycia zależnych od uprawnień odbiorcy, czego
+#   ZonePricing (jedna cena na strefę w okresie) nie wyraża. Szczegóły
+#   w docs/decyzje-ure/README.md.
 #
 #   Cena maksymalna w taryfach dwustrefowych (informacje Enei z 1.01.2025
 #   i 1.10.2025) działa dwustopniowo, w skali miesiąca:
@@ -607,6 +695,22 @@ _G12W_SCHEDULE = [
     ZoneScheduleEntry(Zone.OFF_PEAK, 21, 24, _WORKDAYS),
     ZoneScheduleEntry(Zone.OFF_PEAK, 0, 24, _WEEKEND),
 ]
+
+_G12W_MONTHLY_2024_H2 = MonthlyFees(
+    network_fixed_1phase=16.41,
+    network_fixed_3phase=24.54,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=0.0,
+    capacity_500_1200=0.0,
+    capacity_1200_2800=0.0,
+    capacity_gt2800=0.0,
+    transition_lt500=0.02,
+    transition_500_1200=0.10,
+    transition_gt1200=0.33,
+)
 
 _G12W_MONTHLY_2025_H1 = MonthlyFees(
     network_fixed_1phase=16.41,
@@ -659,6 +763,30 @@ _G12W_MONTHLY_2026 = MonthlyFees(
 TARIFF_G12W = TariffGroup(
     name="G12w",
     periods=[
+        # 1.07–31.12.2024: cena maksymalna w szczycie (taryfowa 0,8404), opłata mocowa zawieszona,
+        # opłata OZE zerowa, kogeneracyjna 6,18 zł/MWh
+        TariffPeriod(
+            valid_from=date(2024, 7, 1),
+            valid_until=date(2024, 12, 31),
+            monthly=_G12W_MONTHLY_2024_H2,
+            zones={
+                Zone.PEAK: ZonePricing(
+                    energy=0.5000,
+                    variable_network=0.2736,
+                    quality=0.0314,
+                    oze=0.0000,
+                    cogeneration=0.00618,
+                ),
+                Zone.OFF_PEAK: ZonePricing(
+                    energy=0.4171,
+                    variable_network=0.0825,
+                    quality=0.0314,
+                    oze=0.0000,
+                    cogeneration=0.00618,
+                ),
+            },
+            schedule=_G12W_SCHEDULE,
+        ),
         # 1.01–30.06.2025: cena maksymalna w szczycie, opłata mocowa zawieszona
         TariffPeriod(
             valid_from=date(2025, 1, 1),

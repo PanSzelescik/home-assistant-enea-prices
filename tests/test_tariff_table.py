@@ -88,12 +88,16 @@ def test_every_group_covers_the_same_span() -> None:
 
 
 @pytest.mark.parametrize("name", sorted(TARIFFS))
-def test_every_group_prices_every_day_of_2025(name: str) -> None:
-    """2025 is bundled for all three groups, not only the one with invoices."""
+def test_every_group_prices_every_day_of_the_capped_years(name: str) -> None:
+    """1.07.2024 onwards is bundled for all three groups, not only for G12w.
+
+    The table starts where the statutory maximum price stopped depending on a
+    consumption limit; every day from there on has to be priced.
+    """
     group = TARIFFS[name]
     unpriced = [
         day
-        for day in _days(datetime.date(2025, 1, 1), datetime.date(2025, 12, 31))
+        for day in _days(datetime.date(2024, 7, 1), datetime.date(2025, 12, 31))
         if not any(p.valid_from <= day <= p.valid_until for p in group.periods)
     ]
 
@@ -138,3 +142,21 @@ def test_2025_boundary_rates(
 
     assert {zone: pricing.energy for zone, pricing in period.zones.items()} == energy
     assert period.monthly.capacity_gt2800 == capacity
+
+
+@pytest.mark.parametrize("name", sorted(TARIFFS))
+def test_the_2024_to_2025_boundary_swaps_the_levies(name: str) -> None:
+    """The turn of the year moves the levies, not the energy price.
+
+    Both years sit at the cap and the capacity fee is suspended on either side,
+    so the boundary above cannot see this one.  What does change is carried by
+    the distribution tariff: the OZE levy comes back from zero, the cogeneration
+    levy drops to roughly half, and the quality rate goes up.
+    """
+    end_of_2024 = _period_on(name, datetime.date(2024, 12, 31))
+    start_of_2025 = _period_on(name, datetime.date(2025, 1, 1))
+
+    for pricing in end_of_2024.zones.values():
+        assert (pricing.oze, pricing.cogeneration, pricing.quality) == (0.0, 0.00618, 0.0314)
+    for pricing in start_of_2025.zones.values():
+        assert (pricing.oze, pricing.cogeneration, pricing.quality) == (0.0035, 0.0030, 0.0321)
