@@ -27,6 +27,9 @@ UNIT_PRICE = "PLN/kWh"
 UNIT_MONTHLY = "PLN"
 
 # --- Statistics ---
+# Każdy atrybut tutaj to backfill ok. 35 tys. wierszy na grupę u każdego użytkownika
+# przy najbliższym starcie. Brutto celowo brak: koszty brutto dla panelu Energia
+# liczy integracja enea z tych samych danych.
 ZONE_PRICE_ATTRS: list[tuple[str, str]] = [
     ("price_total", "total"),
     ("price_energy", "energy"),

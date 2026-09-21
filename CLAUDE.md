@@ -15,7 +15,7 @@ custom_components/enea_prices/
   config_flow.py    # 2 kroki: wybór taryfy → szczegóły instalacji (fazy, zużycie, rozliczenie)
   const.py          # DOMAIN, PLATFORMS, klucze konfiguracji
   tariffs.py        # model danych: TariffGroup > TariffPeriod > ZonePricing + MonthlyFees
-  sensor.py         # ~23 sensory (G12): 6 dynamicznych + 8 per-strefa + 3 diagnostyczne + 4 miesięczne + 2 datowe
+  sensor.py         # ~25 sensory (G12): 6 dynamicznych + 10 per-strefa + 3 diagnostyczne + 4 miesięczne + 2 datowe
   translations/
     pl.json
     en.json
@@ -93,9 +93,11 @@ Energy dashboard — opcja „Użyj encji z bieżącą ceną": wybierz statyczny
 (np. `day_price_total`, `night_price_total`). HA pobierze historyczne mean-statystyki z recordera
 i policzy koszty retroaktywnie od `valid_from`.
 
-Jedyny sensor brutto to dynamiczny `current_price_total_brutto` — cena płacona za 1 kWh w bieżącej
-strefie, dla aplikacji liczących koszt z sensora HA (np. rejestratory ładowania). Sensory per strefa
-i wstrzykiwane statystyki pozostają netto; koszty brutto oblicza `costs.py` w integracji `enea`.
+Sensory brutto są lustrzane do netto: dynamiczny `current_price_total_brutto` (cena płacona za 1 kWh
+w bieżącej strefie — dla aplikacji liczących koszt z sensora HA, np. rejestratorów ładowania) oraz
+statyczne `{zone}_price_total_brutto`. Wyjątek: wstrzykiwane statystyki pozostają netto
+(`ZONE_PRICE_ATTRS` nie zawiera `total_brutto`) — koszty brutto oblicza `costs.py` w integracji `enea`,
+a drugi komplet ~35 tys. wierszy na grupę niczego by tam nie dodał.
 
 ## Opłaty miesięczne
 
