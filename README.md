@@ -26,7 +26,7 @@ Integracja konfigurowana jest w dwóch krokach:
 Aktywny okres taryfowy: **1 lutego – 31 grudnia 2026**
 Konfiguracja przykładowa: instalacja 3-fazowa, zużycie 1200–2800 kWh/rok, rozliczenie miesięczne
 
-Wszystkie wartości cenowe są **netto** (bez VAT). Ceny brutto oblicza integracja [Enea Licznik](https://github.com/PanSzelescik/home-assistant-enea) na podstawie danych z tej integracji.
+Wszystkie wartości cenowe są **netto** (bez VAT), z jednym wyjątkiem: *Aktualna cena całkowita (brutto)* to cena z akcyzą i VAT — dla aplikacji, które liczą koszt z sensora HA (np. rejestratory ładowania). Koszty brutto w statystykach oblicza integracja [Enea Licznik](https://github.com/PanSzelescik/home-assistant-enea) na podstawie danych z tej integracji.
 
 ### Sensory główne
 
@@ -37,6 +37,7 @@ Wszystkie wartości cenowe są **netto** (bez VAT). Ceny brutto oblicza integrac
 | Aktualna opłata dystrybucyjna (netto) | 0.3214 zł/kWh | 0.1348 zł/kWh |
 | Aktualny składnik sieciowy (netto) | 0.2779 zł/kWh | 0.0913 zł/kWh |
 | Aktualna cena całkowita (netto) | 0.8993 zł/kWh | 0.4717 zł/kWh |
+| Aktualna cena całkowita (brutto) | 1.1123 zł/kWh | 0.5863 zł/kWh |
 | Cena energii – dzień/noc (netto) | 0.5779 zł/kWh | 0.3369 zł/kWh |
 | Cena całkowita – dzień/noc (netto) | 0.8993 zł/kWh | 0.4717 zł/kWh |
 | Opłata stała sieciowa | **14.56 zł/miesiąc** (3-fazowa) | |

@@ -58,6 +58,13 @@ async def async_setup_entry(
         ),
         EneaPricesDynamicSensor(
             group=group,
+            key="current_price_total_brutto",
+            translation_key="current_price_total_brutto",
+            unit=UNIT_PRICE,
+            value_fn=lambda p, z: round(p.zones[z].total_brutto, 4),
+        ),
+        EneaPricesDynamicSensor(
+            group=group,
             key="current_distribution",
             translation_key="current_distribution",
             unit=UNIT_PRICE,

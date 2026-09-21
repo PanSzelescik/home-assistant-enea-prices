@@ -7,6 +7,13 @@ from datetime import date
 from enum import StrEnum
 from functools import lru_cache
 
+# --- Stawki podatkowe ---
+VAT_RATE = 0.23
+"""Stawka podstawowa VAT na energię elektryczną (art. 41 ust. 1 ustawy o VAT)."""
+
+AKCYZA = 0.005
+"""Podatek akcyzowy od energii elektrycznej, zł/kWh (5 zł/MWh, art. 89 ust. 3 ustawy o podatku akcyzowym)."""
+
 
 class Zone(StrEnum):
     """Tariff zone names."""
@@ -45,6 +52,13 @@ class ZonePricing:
     def total(self) -> float:
         """Cena energii + wszystkie zmienne opłaty dystrybucyjne (netto)."""
         return self.energy + self.total_distribution
+
+    @property
+    def total_brutto(self) -> float:
+        """Cena całkowita z akcyzą i VAT – to, co odbiorca płaci za 1 kWh."""
+        # Kolejność dodawania jak w costs.py integracji enea – oba wyniki muszą
+        # być identyczne co do bitu, inaczej po zaokrągleniu rozjadą się na 4. miejscu.
+        return (self.energy + AKCYZA + self.total_distribution) * (1 + VAT_RATE)
 
 
 

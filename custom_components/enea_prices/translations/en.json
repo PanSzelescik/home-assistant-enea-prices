@@ -45,6 +45,7 @@
       },
       "current_price_energy":          { "name": "Current Energy Price (netto)" },
       "current_price_total":           { "name": "Current Total Price (netto)" },
+      "current_price_total_brutto":    { "name": "Current Total Price (brutto)" },
       "current_distribution":          { "name": "Current Distribution Fee (netto)" },
       "current_network_fee":           { "name": "Current Network Fee (netto)" },
       "day_price_energy":              { "name": "Day Zone Energy Price (netto)" },

@@ -2,6 +2,11 @@
 
 from homeassistant.const import Platform
 
+# Zdefiniowane przy danych taryfowych; re-eksportowane, bo integracja enea
+# importuje je stąd (getattr(const, "AKCYZA", 0.0) – brak nazwy po cichu
+# wyzerowałby akcyzę w każdej statystyce kosztów).
+from .tariffs import AKCYZA, VAT_RATE  # noqa: F401
+
 # --- Integration identity ---
 DOMAIN = "enea_prices"
 PLATFORMS = [Platform.SENSOR]
@@ -20,10 +25,6 @@ DEFAULT_BILLING_MONTHS = "1"
 # --- Units ---
 UNIT_PRICE = "PLN/kWh"
 UNIT_MONTHLY = "PLN"
-
-# --- Tax rates ---
-VAT_RATE = 0.23
-AKCYZA = 0.005  # zł/kWh, podatek akcyzowy na energię elektryczną
 
 # --- Statistics ---
 ZONE_PRICE_ATTRS: list[tuple[str, str]] = [
