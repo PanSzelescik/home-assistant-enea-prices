@@ -966,7 +966,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "holidays", specifier = "==0.104" },
+    { name = "holidays", specifier = ">=0.104" },
     { name = "homeassistant", specifier = ">=2026.3.3" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
