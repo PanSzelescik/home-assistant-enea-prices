@@ -58,6 +58,13 @@ async def async_setup_entry(
         ),
         EneaPricesDynamicSensor(
             group=group,
+            key="current_price_total_brutto",
+            translation_key="current_price_total_brutto",
+            unit=UNIT_PRICE,
+            value_fn=lambda p, z: round(p.zones[z].total_brutto, 4),
+        ),
+        EneaPricesDynamicSensor(
+            group=group,
             key="current_distribution",
             translation_key="current_distribution",
             unit=UNIT_PRICE,
@@ -90,6 +97,7 @@ async def async_setup_entry(
         per_zone += [
             _s(f"{zone}_price_energy",   zone, "energy"),
             _s(f"{zone}_price_total",    zone, "total"),
+            _s(f"{zone}_price_total_brutto", zone, "total_brutto"),
             _s(f"{zone}_distribution",   zone, "total_distribution",  category=EntityCategory.DIAGNOSTIC),
             _s(f"{zone}_network_fee",    zone, "variable_network",    category=EntityCategory.DIAGNOSTIC),
         ]
