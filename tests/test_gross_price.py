@@ -121,7 +121,9 @@ class _Clock:
         return IN_2026
 
 
-@pytest.mark.parametrize("name", sorted(TARIFFS))
+@pytest.mark.parametrize(
+    "name", sorted(name for name, group in TARIFFS.items() if not group.contract_energy)
+)
 async def test_every_zone_has_a_static_gross_total_too(name: str, platform, monkeypatch) -> None:
     """The per-zone reference rates mirror the net ones, gross included.
 

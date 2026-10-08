@@ -15,7 +15,7 @@ from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
 
 from . import EneaPricesConfigEntry
-from .const import DOMAIN, UNIT_MONTHLY, UNIT_PRICE
+from .const import CHANGE_ENERGY, CONF_PRICE_CHANGES, DOMAIN, UNIT_MONTHLY, UNIT_PRICE
 from .statistics import async_inject_price_statistics
 from .tariffs import MonthlyFees, TariffGroup, TariffPeriod, Zone
 
@@ -88,7 +88,7 @@ async def async_setup_entry(
             unit=UNIT_PRICE, zone=zone, attr=attr, entity_category=category,
         )
 
-    # Per-zone static sensors – data-driven (obsługuje G11/G12/G12w)
+    # Per-zone static sensors – data-driven (każda grupa, 1–3 strefy)
     active_zones = list(period.zones.keys()) if period else []
     first_zone = active_zones[0] if active_zones else Zone.DAY
 
@@ -122,6 +122,12 @@ async def async_setup_entry(
         EneaPricesDateSensor(group=group, key="valid_from",  translation_key="valid_from"),
         EneaPricesDateSensor(group=group, key="valid_until", translation_key="valid_until"),
     ]
+    if any(change.get(CHANGE_ENERGY) is not None for change in entry.data.get(CONF_PRICE_CHANGES, [])):
+        # Opłata handlowa istnieje tylko w ofertach rynkowych – taryfa URE jej nie zna.
+        static_sensors.append(
+            EneaPricesMonthlyFeeSensor(group=group, key="monthly_trade_fee", translation_key="monthly_trade_fee",
+                                       value_fn=lambda m: m.trade)
+        )
 
     async_add_entities(dynamic_sensors + static_sensors)
     hass.async_create_task(async_inject_price_statistics(hass, group))

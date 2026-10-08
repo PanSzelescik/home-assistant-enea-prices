@@ -205,3 +205,51 @@ async def test_running_again_over_a_long_day_writes_nothing(wired) -> None:
     )
 
     assert store.injected == []
+
+
+async def test_an_hour_stored_with_another_price_is_written_again(wired) -> None:
+    """A stored hour whose price no longer matches the table is corrected.
+
+    Contract prices entered with a start date in the past, a correction to the
+    table, or a return from contract to tariff prices all change what an hour
+    already stored should have cost.  Skipping every stored hour would leave the
+    Energy Dashboard pricing that history with the old rate for ever.
+    """
+    day = datetime.date(2026, 1, 1)
+    store = wired(_hours(day) + _hours(day + datetime.timedelta(days=1)), mean=0.5779)
+
+    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.345, day, day)
+
+    assert store.starts == _hours(day)
+    assert {row["mean"] for _meta, rows in store.injected for row in rows} == {0.345}
+
+
+async def test_a_rewrite_still_leaves_the_newest_hours_to_the_recorder(wired) -> None:
+    """Correcting old hours must not reach past the newest stored statistic.
+
+    The boundary that keeps the import out of the recorder's way holds for a
+    mispriced hour exactly as for a missing one.
+    """
+    day = datetime.date(2026, 1, 1)
+    store = wired(_hours(day), mean=0.5779)
+
+    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.345, day, day)
+
+    assert store.starts == _hours(day)[:-1]
+
+
+async def test_a_price_differing_only_past_four_places_is_not_rewritten(wired) -> None:
+    """The recorder stores the rounded state, the table the exact float sum.
+
+    A total like 0.5779 + 0.2779 + 0.0332 + 0.0073 + 0.0030 is not exactly the
+    0.8993 the sensor reports and the recorder compiles; treating that as a
+    different price would rewrite every hour the recorder ever wrote.
+    """
+    day = datetime.date(2026, 1, 1)
+    exact = 0.5779 + 0.2779 + 0.0332 + 0.0073 + 0.0030
+    store = wired(_hours(day) + _hours(day + datetime.timedelta(days=1)), mean=0.8993)
+
+    await price_stats._inject_sensor_statistics(object(), ENTITY, exact, day, day)
+
+    assert exact != 0.8993
+    assert store.injected == []

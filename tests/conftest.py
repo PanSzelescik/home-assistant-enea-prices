@@ -168,8 +168,7 @@ def platform(monkeypatch: pytest.MonkeyPatch):
     # Imported here so they are resolved after the path above has been set up.
     from custom_components import enea_prices  # noqa: PLC0415
     from custom_components.enea_prices import sensor as prices_sensor  # noqa: PLC0415
-    from custom_components.enea_prices.const import CONF_TARIFF  # noqa: PLC0415
-    from custom_components.enea_prices.tariffs import TARIFFS  # noqa: PLC0415
+    from custom_components.enea_prices.const import CONF_PRICE_CHANGES, CONF_TARIFF  # noqa: PLC0415
 
     injections: list[Any] = []
     at_hour: dict[int, list[Any]] = {}
@@ -188,10 +187,18 @@ def platform(monkeypatch: pytest.MonkeyPatch):
     )
     monkeypatch.setattr(prices_sensor, "async_track_time_change", _record_time_change)
 
-    async def _setup(tariff: str = "G12w") -> PlatformSetup:
-        entry = FakeConfigEntry(domain="enea_prices", data={CONF_TARIFF: tariff})
+    async def _setup(
+        tariff: str = "G12w", price_changes: list[dict[str, Any]] | None = None
+    ) -> PlatformSetup:
+        data: dict[str, Any] = {CONF_TARIFF: tariff}
+        if price_changes is not None:
+            data[CONF_PRICE_CHANGES] = price_changes
+        entry = FakeConfigEntry(domain="enea_prices", data=data)
         entry.runtime_data = enea_prices.EneaPricesRuntimeData(
-            tariff=TARIFFS[tariff], phases=1, annual_kwh=2000, billing_months=6
+            tariff=enea_prices.build_tariff(tariff, price_changes),
+            phases=1,
+            annual_kwh=2000,
+            billing_months=6,
         )
         hass = FakeHass([entry])
         entities: list[Any] = []
@@ -202,20 +209,27 @@ def platform(monkeypatch: pytest.MonkeyPatch):
     return _setup
 
 
+STORED_PRICE = 0.6518
+"""The mean every stored hour holds unless a test says otherwise."""
+
+
 class _Recorder:
     """Answers recorder queries from a set of stored hour starts.
 
     late, when given, is a row committed between the two queries the code
     makes: the window read does not see it, the newest-entry read does.
+    Every stored hour holds mean, the price it was recorded with.
     """
 
     def __init__(
         self,
         stored: list[datetime.datetime],
         late: datetime.datetime | None = None,
+        mean: float = STORED_PRICE,
     ) -> None:
         self.stored = sorted(stored)
         self.late = late
+        self.mean = mean
 
     async def async_add_executor_job(self, target: Any, *args: Any) -> Any:
         """Run the query inline."""
@@ -231,7 +245,11 @@ class _Recorder:
     def during(self, hass: Any, start: Any, end: Any, ids: set, *rest: Any) -> dict:
         """Ascending entries inside [start, end)."""
         sid = next(iter(ids))
-        rows = [{"start": dt.timestamp()} for dt in self.stored if start <= dt < end]
+        rows = [
+            {"start": dt.timestamp(), "mean": self.mean}
+            for dt in self.stored
+            if start <= dt < end
+        ]
         return {sid: rows} if rows else {}
 
 
@@ -244,8 +262,9 @@ def wired(monkeypatch: pytest.MonkeyPatch, stats_store: StatsStore):
     def _wire(
         stored: list[datetime.datetime],
         late: datetime.datetime | None = None,
+        mean: float = STORED_PRICE,
     ) -> StatsStore:
-        rec = _Recorder(stored, late)
+        rec = _Recorder(stored, late, mean)
         monkeypatch.setattr(price_stats, "get_instance", lambda hass: rec)
         monkeypatch.setattr(price_stats, "statistics_during_period", rec.during, raising=False)
         # Kept wired so the pre-fix code path runs too and the regression test

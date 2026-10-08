@@ -11,15 +11,52 @@ Obsługuje taryfy wielostrefowe (G12 i inne) z uwzględnieniem wszystkich skład
 
 ## Konfiguracja
 
-Integracja konfigurowana jest w dwóch krokach:
+Integracja konfigurowana jest w trzech krokach:
 
 **Krok 1 – Wybór taryfy**
 - Wybierz swoją grupę taryfową (np. G12)
 
 **Krok 2 – Szczegóły instalacji** (potrzebne do opłat miesięcznych)
-- Typ instalacji: 1-fazowa / 3-fazowa
+- Typ instalacji: 1-fazowa / 3-fazowa — sprawdzisz na fakturze w pozycji „Opłata stała sieciowa – układ …”
 - Roczne zużycie energii (przedział dla opłaty mocowej)
 - Okres rozliczeniowy (dla opłaty abonamentowej)
+
+**Krok 3 – Ceny energii**
+- **Ceny z taryfy URE** — taryfa Enea S.A. zatwierdzana przez Prezesa URE (G11, G12, G12w)
+- **Ceny z umowy** — jeśli masz ofertę rynkową (np. EneoPewność, EKO Oferta) albo na fakturze widzisz
+  inne ceny lub opłatę handlową. Dla G12sezON i G13active to jedyna opcja — URE nie zatwierdza dla nich
+  ceny energii, podają ją tylko oferty.
+
+Wszystko można później zmienić przez **Skonfiguruj ponownie**.
+
+### Ceny z umowy
+
+Przepisz z faktury, z sekcji **Rozliczenie – sprzedaż energii**:
+
+| Pole | Skąd na fakturze |
+|------|------------------|
+| Cena dla każdej strefy | kolumna **Cena jedn. netto** przy danej strefie (np. „dzienna” 0,5829) |
+| Opłata handlowa | pozycja „Opłata handlowa” w zł/mies. (0, jeśli jej nie ma) |
+| Ceny obowiązują od | dzień, od którego płacisz te ceny — zwykle początek umowy |
+
+Cena z faktury **zawiera już akcyzę** (0,005 zł/kWh) — integracja sama ją odejmuje, dlatego sensor
+„Cena energii (netto)” pokaże o 0,005 mniej niż faktura (0,5829 → 0,5779). Strefy czasowe i całą
+dystrybucję integracja zna z taryfy Enea Operator — są takie same u każdego klienta danej grupy,
+niezależnie od oferty i sprzedawcy.
+
+Przed datą „obowiązują od” zostają ceny z taryfy URE. Historia w panelu Energia od tej daty
+jest przeliczana przy najbliższym starcie Home Assistant.
+
+### Gdy ceny się zmienią
+
+Ceny oferty są stałe tylko przez jej okres (np. 36 miesięcy). Potem sprzedawca może przysłać nową
+ofertę z nowym cennikiem albo wracasz na taryfę. Wtedy w **Skonfiguruj ponownie** wybierz:
+
+- **Nowe ceny z umowy od…** — wpisz nowe ceny z faktury i dzień, od którego obowiązują,
+- **Powrót do taryfy URE od…** — od podanego dnia znów ceny z taryfy, bez opłaty handlowej.
+
+Zmiana jest **dopisywana** do historii: wcześniejsze miesiące zachowują ceny, które wtedy obowiązywały.
+Literówkę poprawisz, wpisując ceny ponownie z tą samą datą co ostatnia zmiana.
 
 ## Sensory – przykład dla G12 (21 marca 2026)
 
@@ -80,7 +117,8 @@ nie mają wstrzykiwanych statystyk: wskazane w opcji „Użyj encji z bieżącą
 od chwili wyboru, bez historii. Koszty brutto wstecz zapewnia Enea Licznik (patrz niżej).
 
 > Pierwszy start po aktualizacji rozszerzającej tabelę o kolejny rok wstrzykuje jednorazowo
-> kilkadziesiąt tysięcy wierszy statystyk i może chwilę potrwać. Kolejne starty dopisują tylko braki.
+> kilkadziesiąt tysięcy wierszy statystyk i może chwilę potrwać. Kolejne starty dopisują tylko braki
+> i poprawiają godziny zapisane z inną ceną (np. po wpisaniu cen z umowy z datą wsteczną).
 
 Aby skonfigurować śledzenie kosztów w dashboardzie Energia:
 
@@ -116,6 +154,33 @@ Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-ene
 | G11 | Jednostrefowa (całodobowa) | ✅ Dostępna |
 | G12 | Dwustrefowa (dzień/noc) | ✅ Dostępna |
 | G12w | Dwustrefowa weekendowa (szczyt/poza szczytem) | ✅ Dostępna |
+| G12sezON | Dwustrefowa sezonowa (zalecany pobór/pozostałe godziny), od 2026 | ✅ Dostępna — cena energii z umowy |
+| G13active | Trójstrefowa, harmonogram co miesiąc (zalecany pobór/pozostałe/zalecane ograniczanie), od 2026 | ✅ Dostępna — cena energii z umowy |
+| G11pewna, G12as | Stawka dystrybucyjna zależna od zużycia w okresie | ❌ Nieobsługiwana |
+
+### Strefy G12sezON
+
+| Miesiące | Strefa zalecanego poboru (tańsza) | Pozostałe godziny doby |
+|----------|-----------------------------------|------------------------|
+| kwiecień–wrzesień | 04:00–06:00 i 09:00–17:00 | 06:00–09:00 i 17:00–04:00 |
+| październik–marzec | 22:00–06:00 i 11:00–13:00 | 06:00–11:00 i 13:00–22:00 |
+
+### Strefy G13active
+
+| Miesiąc | Zalecany pobór (najtańsza) | Zalecane ograniczanie (najdroższa) |
+|---------|----------------------------|------------------------------------|
+| styczeń | 23–6 | 7–10, 15–20 |
+| luty | 23–6 | 7–9, 16–21 |
+| marzec | 10–16 | 6–9, 16–23 |
+| kwiecień | 10–16 | 6–9, 18–23 |
+| maj–sierpień | 9–17 | 6–9, 18–23 |
+| wrzesień | 10–16 | 6–9, 17–23 |
+| październik | 10–16 | 7–9, 16–23 |
+| listopad | 23–6 | 7–9, 14–21 |
+| grudzień | 23–6 | 7–10, 13–20 |
+
+Pozostałe godziny doby to reszta doby. Weekendy i święta nie mają znaczenia w obu grupach.
+Źródło: taryfa Enea Operator na 2026 r., pkt 2.2.10–2.2.11 (stawki: pkt 7.5–7.6).
 
 ## Ceny historyczne i rządowe mrożenie
 

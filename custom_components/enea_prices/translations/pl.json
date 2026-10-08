@@ -19,17 +19,70 @@
       },
       "reconfigure": {
         "title": "Zmień szczegóły instalacji",
-        "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych.",
+        "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych. W następnym kroku możesz zmienić ceny energii.",
         "data": {
           "phases": "Typ instalacji",
           "annual_kwh": "Roczne zużycie energii",
           "billing_months": "Okres rozliczeniowy"
         }
+      },
+      "prices": {
+        "title": "Ceny energii",
+        "description": "Skąd brać cenę energii? Jeśli masz umowę z ofertą rynkową (np. EneoPewność, EKO Oferta) albo na fakturze widzisz inne ceny niż w taryfie URE lub opłatę handlową, wybierz ceny z umowy.",
+        "menu_options": {
+          "tariff_prices": "Ceny z taryfy URE",
+          "contract": "Ceny z umowy (przepiszę z faktury)"
+        }
+      },
+      "change_prices": {
+        "title": "Ceny energii",
+        "description": "Twoja historia cen (każda zmiana obowiązuje do następnej, przed pierwszą – taryfa URE):\n{history}\n\nNowe ceny dopisz od dnia, od którego je płacisz – wcześniejsze miesiące zachowają dotychczasowe ceny. Aby poprawić literówkę, wpisz ceny ponownie z tą samą datą co ostatnia zmiana.",
+        "menu_options": {
+          "keep_prices": "Bez zmian w cenach",
+          "contract": "Nowe ceny z umowy od…",
+          "tariff_prices": "Powrót do taryfy URE od…",
+          "clear_prices": "Usuń wszystkie ceny z umowy (wszędzie taryfa URE)"
+        }
+      },
+      "tariff_from": {
+        "title": "Powrót do taryfy URE",
+        "description": "Od tego dnia energia znów będzie liczona po cenach z taryfy URE, bez opłaty handlowej.",
+        "data": {
+          "valid_from": "Taryfa obowiązuje od"
+        }
+      },
+      "contract": {
+        "title": "Ceny z umowy – {tariff}",
+        "description": "Przepisz ceny z faktury, z sekcji **Rozliczenie – sprzedaż energii**, kolumna **Cena jedn. netto**. Ta cena zawiera już akcyzę (0,005 zł/kWh) – integracja sama ją odejmie, dlatego sensory „Cena energii (netto)” pokażą o 0,005 mniej. Jeśli w okresie rozliczeniowym zmieniła się cena i faktura ma dwie linie z datami, przepisz nowszą. Dystrybucję i strefy czasowe integracja zna z taryfy Enea Operator.",
+        "data": {
+          "energy_day": "Strefa dzienna",
+          "energy_night": "Strefa nocna",
+          "energy_peak": "Strefa szczytowa",
+          "energy_off_peak": "Strefa pozaszczytowa",
+          "energy_recommended_use": "Strefa zalecanego poboru",
+          "energy_remaining": "Pozostałe godziny doby",
+          "energy_recommended_limit": "Strefa zalecanego ograniczania",
+          "trade_fee": "Opłata handlowa",
+          "valid_from": "Ceny obowiązują od"
+        },
+        "data_description": {
+          "trade_fee": "Miesięczna opłata handlowa netto z faktury (np. 9,82 zł przy e-fakturze). 0, jeśli jej nie ma.",
+          "valid_from": "Dzień, od którego płacisz te ceny – zwykle początek umowy lub nowego cennika. Wcześniejsze godziny zachowają dotychczasowe ceny; historia w panelu Energia od tej daty zostanie przeliczona przy najbliższym starcie. Najwcześniej {earliest}."
+        }
       }
+    },
+    "error": {
+      "before_tariff": "Ta data jest wcześniejsza niż początek tabeli dla tej grupy ({earliest}).",
+      "before_last_change": "Ta data jest wcześniejsza niż ostatnia zmiana cen ({last}). Wcześniejszych miesięcy nie da się zmienić bez usunięcia całej historii."
     },
     "abort": {
       "already_configured": "Ta taryfa jest już skonfigurowana",
       "reconfigure_successful": "Konfiguracja została zaktualizowana"
+    }
+  },
+  "exceptions": {
+    "contract_required": {
+      "message": "Grupa {tariff} nie ma ceny energii w taryfie URE – wpisz ceny z umowy w „Skonfiguruj ponownie”."
     }
   },
   "entity": {
@@ -40,7 +93,10 @@
           "day": "Dzień",
           "night": "Noc",
           "peak": "Szczyt",
-          "off_peak": "Poza szczytem"
+          "off_peak": "Poza szczytem",
+          "recommended_use": "Zalecany pobór",
+          "remaining": "Pozostałe godziny",
+          "recommended_limit": "Zalecane ograniczanie"
         }
       },
       "current_price_energy":          { "name": "Aktualna cena energii (netto)" },
@@ -52,6 +108,9 @@
       "night_price_energy":            { "name": "Cena energii – noc (netto)" },
       "peak_price_energy":             { "name": "Cena energii – szczyt (netto)" },
       "off_peak_price_energy":         { "name": "Cena energii – poza szczytem (netto)" },
+      "recommended_use_price_energy":  { "name": "Cena energii – zalecany pobór (netto)" },
+      "remaining_price_energy":        { "name": "Cena energii – pozostałe godziny (netto)" },
+      "recommended_limit_price_energy": { "name": "Cena energii – zalecane ograniczanie (netto)" },
       "day_price_total":               { "name": "Cena całkowita – dzień (netto)" },
       "day_price_total_brutto":        { "name": "Cena całkowita – dzień (brutto)" },
       "night_price_total":             { "name": "Cena całkowita – noc (netto)" },
@@ -60,14 +119,26 @@
       "peak_price_total_brutto":       { "name": "Cena całkowita – szczyt (brutto)" },
       "off_peak_price_total":          { "name": "Cena całkowita – poza szczytem (netto)" },
       "off_peak_price_total_brutto":   { "name": "Cena całkowita – poza szczytem (brutto)" },
+      "recommended_use_price_total":   { "name": "Cena całkowita – zalecany pobór (netto)" },
+      "recommended_use_price_total_brutto": { "name": "Cena całkowita – zalecany pobór (brutto)" },
+      "remaining_price_total":         { "name": "Cena całkowita – pozostałe godziny (netto)" },
+      "remaining_price_total_brutto":  { "name": "Cena całkowita – pozostałe godziny (brutto)" },
+      "recommended_limit_price_total": { "name": "Cena całkowita – zalecane ograniczanie (netto)" },
+      "recommended_limit_price_total_brutto": { "name": "Cena całkowita – zalecane ograniczanie (brutto)" },
       "day_distribution":              { "name": "Opłata dystrybucyjna – dzień (netto)" },
       "night_distribution":            { "name": "Opłata dystrybucyjna – noc (netto)" },
       "peak_distribution":             { "name": "Opłata dystrybucyjna – szczyt (netto)" },
       "off_peak_distribution":         { "name": "Opłata dystrybucyjna – poza szczytem (netto)" },
+      "recommended_use_distribution":  { "name": "Opłata dystrybucyjna – zalecany pobór (netto)" },
+      "remaining_distribution":        { "name": "Opłata dystrybucyjna – pozostałe godziny (netto)" },
+      "recommended_limit_distribution": { "name": "Opłata dystrybucyjna – zalecane ograniczanie (netto)" },
       "day_network_fee":               { "name": "Składnik sieciowy – dzień" },
       "night_network_fee":             { "name": "Składnik sieciowy – noc" },
       "peak_network_fee":              { "name": "Składnik sieciowy – szczyt" },
       "off_peak_network_fee":          { "name": "Składnik sieciowy – poza szczytem" },
+      "recommended_use_network_fee":   { "name": "Składnik sieciowy – zalecany pobór" },
+      "remaining_network_fee":         { "name": "Składnik sieciowy – pozostałe godziny" },
+      "recommended_limit_network_fee": { "name": "Składnik sieciowy – zalecane ograniczanie" },
       "quality_fee":                   { "name": "Stawka jakościowa" },
       "oze_fee":                       { "name": "Opłata OZE" },
       "cogeneration_fee":              { "name": "Opłata kogeneracyjna" },
@@ -75,6 +146,7 @@
       "monthly_subscription":          { "name": "Opłata abonamentowa" },
       "monthly_capacity":              { "name": "Opłata mocowa" },
       "monthly_transition":            { "name": "Opłata przejściowa" },
+      "monthly_trade_fee":             { "name": "Opłata handlowa" },
       "valid_from":                    { "name": "Taryfa obowiązuje od" },
       "valid_until":                   { "name": "Taryfa obowiązuje do (włącznie)" }
     }
