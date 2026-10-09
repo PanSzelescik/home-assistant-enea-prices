@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 from enum import StrEnum
 from functools import lru_cache
 
@@ -22,6 +22,12 @@ class Zone(StrEnum):
     NIGHT = "night"
     PEAK = "peak"
     OFF_PEAK = "off_peak"
+    RECOMMENDED_USE = "recommended_use"
+    """Strefa zalecanego poboru (G12sezON, G13active)."""
+    REMAINING = "remaining"
+    """Pozostałe godziny doby (G12sezON, G13active)."""
+    RECOMMENDED_LIMIT = "recommended_limit"
+    """Strefa zalecanego ograniczenia (G13active)."""
 
 
 @dataclass(frozen=True)
@@ -29,7 +35,7 @@ class ZonePricing:
     """Per-kWh prices for a single zone (all netto, zł/kWh)."""
 
     energy: float
-    """Cena energii elektrycznej netto (sprzedawca Enea S.A.)."""
+    """Cena energii elektrycznej netto, bez akcyzy (taryfa Enea S.A. albo cena z umowy)."""
 
     variable_network: float
     """Składnik zmienny stawki sieciowej (Enea Operator)."""
@@ -87,6 +93,10 @@ class MonthlyFees:
     transition_500_1200: float = 0.0
     transition_gt1200: float = 0.0
 
+    # Opłata handlowa sprzedawcy – tylko w ofertach rynkowych, nigdy w taryfie URE.
+    # Pochodzi z cen z umowy (with_price_changes), w tabeli zawsze 0.0.
+    trade: float = 0.0
+
     def get_network_fixed(self, phases: int) -> float:
         """Składnik stały dla instalacji 1- lub 3-fazowej."""
         return self.network_fixed_1phase if phases == 1 else self.network_fixed_3phase
@@ -126,6 +136,8 @@ class ZoneScheduleEntry:
     """End hour (1-24), exclusive. 24 means midnight next day."""
     weekdays: frozenset[int] | None = None
     """Days-of-week this entry applies to (0=Mon, 6=Sun). None means every day."""
+    months: frozenset[int] | None = None
+    """Months this entry applies to (1=Jan, 12=Dec). None means every month."""
 
 
 @lru_cache(maxsize=10)
@@ -160,11 +172,12 @@ class TariffPeriod:
     def get_zone_at_hour(self, hour: int, day: date | None = None) -> Zone:
         """Return which zone is active at the given hour (0-23).
 
-        day: when provided, weekday constraints are evaluated and Polish public
-             holidays are automatically treated as non-workdays (Saturday).
-             When None, weekday constraints are ignored.
+        day: when provided, weekday and month constraints are evaluated and
+             Polish public holidays are automatically treated as non-workdays
+             (Saturday).  When None, both constraints are ignored.
         """
         weekday: int | None = None
+        month = day.month if day is not None else None
         if day is not None:
             weekday = day.weekday()
             if (
@@ -175,8 +188,11 @@ class TariffPeriod:
                 weekday = 5  # treat public holiday as Saturday
         for entry in self.schedule:
             if entry.start_hour <= hour < entry.end_hour:
-                if entry.weekdays is None or weekday is None or weekday in entry.weekdays:
-                    return entry.zone
+                if entry.weekdays is not None and weekday is not None and weekday not in entry.weekdays:
+                    continue
+                if entry.months is not None and month is not None and month not in entry.months:
+                    continue
+                return entry.zone
         return Zone.DAY
 
     def get_zone_change_hours(self) -> list[int]:
@@ -191,6 +207,13 @@ class TariffGroup:
     name: str
     periods: list[TariffPeriod]
     """Must be sorted by valid_from ascending, must not overlap."""
+    contract_energy: bool = False
+    """True when no URE-approved tariff prices this group's energy.
+
+    Only the distribution side of such a group is regulated; the energy price
+    comes from the customer's contract, so every `energy` in its table is a
+    0.0 placeholder and the group is usable only through with_price_changes.
+    """
 
     def get_period_for_date(self, d: date) -> TariffPeriod | None:
         """Return the period active on the given date, or None."""
@@ -219,6 +242,76 @@ class TariffGroup:
         """valid_until of the currently active period."""
         p = self.get_current_period()
         return p.valid_until if p else None
+
+
+def invoice_price_to_energy(price: float) -> float:
+    """Convert an energy price copied from an invoice into `ZonePricing.energy`.
+
+    Invoices and offer price lists show the unit price "netto" with the excise
+    already in it (0,5829 on an invoice is the 0,5779 tariff price + 0,005), while
+    the table keeps energy without excise and total_brutto adds AKCYZA back.
+    Rounded to 4 places, the precision prices are published with, so a typed
+    0.35 becomes exactly 0.345 rather than 0.34499999999999997.
+    """
+    return round(price - AKCYZA, 4)
+
+
+@dataclass(frozen=True)
+class PriceChange:
+    """From valid_from on, the energy is priced this way – until the next change.
+
+    energy None means back to the URE tariff; otherwise the customer's contract
+    prices per zone, excise-free as in ZonePricing (see invoice_price_to_energy),
+    with the seller's monthly trade fee.
+    """
+
+    valid_from: date
+    energy: dict[Zone, float] | None = None
+    trade_fee: float = 0.0
+
+
+def with_price_changes(group: TariffGroup, changes: list[PriceChange]) -> TariffGroup:
+    """Return a copy of group priced by the customer's history of energy prices.
+
+    A customer moves between the tariff and market offers over time: an offer
+    is fixed for its term, then renewed with a new price list or replaced by
+    the tariff.  Each change applies from its valid_from to the next one's, so
+    a table period straddling a change is split there.  Inside a contract
+    stretch every zone's energy is replaced and the monthly fees gain the trade
+    fee; distribution stays as the table has it, since the operator bills it
+    the same whatever the customer pays for energy.
+
+    Before the first change the tariff applies.  A contract_energy group has no
+    tariff price, so its days outside a contract stretch are dropped.
+    changes must be sorted by valid_from with no two on the same day.
+    """
+    starts = [change.valid_from for change in changes]
+    periods: list[TariffPeriod] = []
+    for period in group.periods:
+        # Cut the table period at every change that falls inside it.
+        cuts = [d for d in starts if period.valid_from < d <= period.valid_until]
+        bounds = [period.valid_from, *cuts, period.valid_until + timedelta(days=1)]
+        for piece_from, next_from in zip(bounds, bounds[1:]):
+            piece = replace(
+                period, valid_from=piece_from, valid_until=next_from - timedelta(days=1)
+            )
+            in_force = [change for change in changes if change.valid_from <= piece_from]
+            change = in_force[-1] if in_force else None
+            if change is None or change.energy is None:
+                if not group.contract_energy:
+                    periods.append(piece)
+                continue
+            periods.append(
+                replace(
+                    piece,
+                    zones={
+                        zone: replace(pricing, energy=change.energy[zone])
+                        for zone, pricing in piece.zones.items()
+                    },
+                    monthly=replace(piece.monthly, trade=change.trade_fee),
+                )
+            )
+    return replace(group, periods=periods, contract_energy=False)
 
 
 # ---------------------------------------------------------------------------
@@ -920,8 +1013,162 @@ TARIFF_G12W = TariffGroup(
 )
 
 
+# ---------------------------------------------------------------------------
+# G12sezON i G13active – grupy z miesięcznym harmonogramem stref (od 2026)
+#
+# Obie istnieją tylko w taryfie dystrybucyjnej Enea Operator (decyzja Prezesa URE
+# DRE.WRE.4211.52.11.2025.TG z 17.12.2025, wyciąg pkt 2.2.10–2.2.11 i 7.5–7.6).
+# Taryfa sprzedaży Enea S.A. zatwierdzana przez URE ich nie obejmuje – cenę energii
+# podają wyłącznie oferty rynkowe (np. EKO Oferta, EneoPewność), różne dla każdej
+# oferty i stałe przez 36 miesięcy od podpisania umowy.  Dlatego contract_energy:
+# energy w tabeli to 0.0, a cenę wpisuje użytkownik z faktury.
+#
+# Strefy wyznacza Operator, więc obowiązują każdego klienta danej grupy na jego
+# sieci, niezależnie od oferty i sprzedawcy.  Stawki stałe, abonament, jakościowa,
+# OZE, kogeneracyjna i mocowa – jak dla G12 w 2026 (wyciąg pkt 7.3, 7.7–7.10).
+# ---------------------------------------------------------------------------
+
+def _monthly_schedule(
+    table: list[tuple[frozenset[int], list[tuple[Zone, int, int]]]],
+) -> list[ZoneScheduleEntry]:
+    """Flatten a per-month zone table into schedule entries.
+
+    Ranges are (zone, start, end) on a 0–24 clock; a range through midnight is
+    written as two, e.g. 22–6 as (zone, 22, 24) and (zone, 0, 6).
+    """
+    return [
+        ZoneScheduleEntry(zone, start, end, months=months)
+        for months, ranges in table
+        for zone, start, end in ranges
+    ]
+
+
+_USE, _REST, _LIMIT = Zone.RECOMMENDED_USE, Zone.REMAINING, Zone.RECOMMENDED_LIMIT
+
+_G12SEZON_SCHEDULE = _monthly_schedule([
+    # Kwiecień–wrzesień: zalecany pobór 4–6 i 9–17
+    (frozenset(range(4, 10)), [
+        (_REST, 0, 4), (_USE, 4, 6), (_REST, 6, 9), (_USE, 9, 17), (_REST, 17, 24),
+    ]),
+    # Październik–marzec: zalecany pobór 22–6 i 11–13
+    (frozenset({10, 11, 12, 1, 2, 3}), [
+        (_USE, 0, 6), (_REST, 6, 11), (_USE, 11, 13), (_REST, 13, 22), (_USE, 22, 24),
+    ]),
+])
+
+_G13ACTIVE_SCHEDULE = _monthly_schedule([
+    (frozenset({1}), [
+        (_USE, 0, 6), (_REST, 6, 7), (_LIMIT, 7, 10), (_REST, 10, 15),
+        (_LIMIT, 15, 20), (_REST, 20, 23), (_USE, 23, 24),
+    ]),
+    (frozenset({2}), [
+        (_USE, 0, 6), (_REST, 6, 7), (_LIMIT, 7, 9), (_REST, 9, 16),
+        (_LIMIT, 16, 21), (_REST, 21, 23), (_USE, 23, 24),
+    ]),
+    (frozenset({3}), [
+        (_REST, 0, 6), (_LIMIT, 6, 9), (_REST, 9, 10), (_USE, 10, 16),
+        (_LIMIT, 16, 23), (_REST, 23, 24),
+    ]),
+    (frozenset({4}), [
+        (_REST, 0, 6), (_LIMIT, 6, 9), (_REST, 9, 10), (_USE, 10, 16),
+        (_REST, 16, 18), (_LIMIT, 18, 23), (_REST, 23, 24),
+    ]),
+    (frozenset({5, 6, 7, 8}), [
+        (_REST, 0, 6), (_LIMIT, 6, 9), (_USE, 9, 17), (_REST, 17, 18),
+        (_LIMIT, 18, 23), (_REST, 23, 24),
+    ]),
+    (frozenset({9}), [
+        (_REST, 0, 6), (_LIMIT, 6, 9), (_REST, 9, 10), (_USE, 10, 16),
+        (_REST, 16, 17), (_LIMIT, 17, 23), (_REST, 23, 24),
+    ]),
+    # Październik: pozostałe godziny 23–7, nie 23–6 jak w marcu i kwietniu
+    (frozenset({10}), [
+        (_REST, 0, 7), (_LIMIT, 7, 9), (_REST, 9, 10), (_USE, 10, 16),
+        (_LIMIT, 16, 23), (_REST, 23, 24),
+    ]),
+    (frozenset({11}), [
+        (_USE, 0, 6), (_REST, 6, 7), (_LIMIT, 7, 9), (_REST, 9, 14),
+        (_LIMIT, 14, 21), (_REST, 21, 23), (_USE, 23, 24),
+    ]),
+    (frozenset({12}), [
+        (_USE, 0, 6), (_REST, 6, 7), (_LIMIT, 7, 10), (_REST, 10, 13),
+        (_LIMIT, 13, 20), (_REST, 20, 23), (_USE, 23, 24),
+    ]),
+])
+
+_SEZON_ACTIVE_MONTHLY_2026 = MonthlyFees(
+    network_fixed_1phase=9.59,
+    network_fixed_3phase=14.56,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    capacity_lt500=4.29,
+    capacity_500_1200=10.31,
+    capacity_1200_2800=17.18,
+    capacity_gt2800=24.05,
+)
+
+
+def _contract_zones(variable_network: dict[Zone, float], quality: float) -> dict[Zone, ZonePricing]:
+    """Zone prices of a contract_energy group: distribution only, energy left at 0.0."""
+    return {
+        zone: ZonePricing(
+            energy=0.0,
+            variable_network=network,
+            quality=quality,
+            oze=0.0073,
+            cogeneration=0.0030,
+        )
+        for zone, network in variable_network.items()
+    }
+
+
+def _contract_group_2026(
+    name: str, variable_network: dict[Zone, float], schedule: list[ZoneScheduleEntry]
+) -> TariffGroup:
+    """A contract_energy group for 2026, split where the quality rate changes."""
+    return TariffGroup(
+        name=name,
+        contract_energy=True,
+        periods=[
+            # Styczeń 2026: stawka jakościowa 0.0331
+            TariffPeriod(
+                valid_from=date(2026, 1, 1),
+                valid_until=date(2026, 1, 31),
+                monthly=_SEZON_ACTIVE_MONTHLY_2026,
+                zones=_contract_zones(variable_network, 0.0331),
+                schedule=schedule,
+            ),
+            # Luty–Grudzień 2026: stawka jakościowa 0.0332
+            TariffPeriod(
+                valid_from=date(2026, 2, 1),
+                valid_until=date(2026, 12, 31),
+                monthly=_SEZON_ACTIVE_MONTHLY_2026,
+                zones=_contract_zones(variable_network, 0.0332),
+                schedule=schedule,
+            ),
+        ],
+    )
+
+
+TARIFF_G12SEZON = _contract_group_2026(
+    "G12sezON",
+    {_USE: 0.0913, _REST: 0.2779},
+    _G12SEZON_SCHEDULE,
+)
+
+TARIFF_G13ACTIVE = _contract_group_2026(
+    "G13active",
+    {_USE: 0.0730, _REST: 0.2456, _LIMIT: 0.3032},
+    _G13ACTIVE_SCHEDULE,
+)
+
+
 TARIFFS: dict[str, TariffGroup] = {
     "G11": TARIFF_G11,
     "G12": TARIFF_G12,
     "G12w": TARIFF_G12W,
+    "G12sezON": TARIFF_G12SEZON,
+    "G13active": TARIFF_G13ACTIVE,
 }

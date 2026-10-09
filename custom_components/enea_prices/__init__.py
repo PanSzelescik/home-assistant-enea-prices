@@ -2,14 +2,35 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 
-from .const import CONF_ANNUAL_KWH, CONF_BILLING_MONTHS, CONF_PHASES, CONF_TARIFF, PLATFORMS
-from .tariffs import TariffGroup, TARIFFS
+from .const import (
+    CONF_ANNUAL_KWH,
+    CHANGE_ENERGY,
+    CHANGE_TRADE_FEE,
+    CHANGE_VALID_FROM,
+    CONF_BILLING_MONTHS,
+    CONF_PHASES,
+    CONF_PRICE_CHANGES,
+    CONF_TARIFF,
+    DOMAIN,
+    PLATFORMS,
+)
+from .tariffs import (
+    TARIFFS,
+    PriceChange,
+    TariffGroup,
+    Zone,
+    invoice_price_to_energy,
+    with_price_changes,
+)
 
 
 @dataclass
@@ -44,10 +65,44 @@ def _async_reload_matching_enea_entries(hass: HomeAssistant, tariff_name: str) -
             )
 
 
+def price_change_from_data(data: Mapping[str, Any]) -> PriceChange:
+    """Convert one stored price change into the model.
+
+    Contract prices are stored exactly as typed off the invoice, excise
+    included, so the form shows them unchanged when opened again; the excise
+    comes off here.
+    """
+    energy = data.get(CHANGE_ENERGY)
+    return PriceChange(
+        valid_from=date.fromisoformat(data[CHANGE_VALID_FROM]),
+        energy=(
+            {Zone(zone): invoice_price_to_energy(price) for zone, price in energy.items()}
+            if energy is not None
+            else None
+        ),
+        trade_fee=data.get(CHANGE_TRADE_FEE, 0.0),
+    )
+
+
+def build_tariff(
+    tariff_name: str, price_changes: list[Mapping[str, Any]] | None
+) -> TariffGroup:
+    """Return the tariff group of an entry, priced by its history of price changes."""
+    group = TARIFFS[tariff_name]
+    changes = [price_change_from_data(change) for change in price_changes or []]
+    if group.contract_energy and not any(c.energy is not None for c in changes):
+        raise ConfigEntryError(
+            translation_domain=DOMAIN,
+            translation_key="contract_required",
+            translation_placeholders={"tariff": tariff_name},
+        )
+    return with_price_changes(group, changes) if changes else group
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: EneaPricesConfigEntry) -> bool:
     """Set up Enea Ceny from a config entry."""
     tariff_name: str = entry.data[CONF_TARIFF]
-    group = TARIFFS[tariff_name]
+    group = build_tariff(tariff_name, entry.data.get(CONF_PRICE_CHANGES))
 
     entry.runtime_data = EneaPricesRuntimeData(
         tariff=group,

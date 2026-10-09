@@ -34,7 +34,7 @@ async def async_inject_price_statistics(hass: HomeAssistant, group: TariffGroup)
     """Inject hourly mean statistics for all static price sensors of this tariff group.
 
     Covers every hour from the tariff period's valid_from up to yesterday.
-    Hours already present in the statistics table are skipped.
+    Hours already stored with the price the table gives them are skipped.
     """
     registry = er.async_get(hass)
     today = dt_util.now().date()
@@ -71,6 +71,14 @@ async def _inject_sensor_statistics(
     instead of looking only at the newest stored entry, so an older tariff
     period added later is filled in as well.
 
+    An hour stored with a different price is written again too: importing
+    over an existing hour replaces its mean.  That is what makes contract
+    prices entered with a past start date, a correction to the table, or a
+    return from contract to tariff prices reach the history the Energy
+    Dashboard prices consumption with.  Prices are compared at the 4 decimal
+    places the sensors report, because the hours the recorder compiles itself
+    hold the rounded state, not the exact sum the table computes.
+
     Only hours strictly before the newest stored statistic are written.  The
     price sensors have a state class, so the recorder compiles their hourly
     statistics itself, and after a restart it catches up on the hour the
@@ -101,11 +109,12 @@ async def _inject_sensor_statistics(
             {"mean"},
         )
     )
-    present = {
-        int(row["start"])
+    stored_mean = {
+        int(row["start"]): row.get("mean")
         for row in existing.get(entity_id, [])
         if row.get("start") is not None
     }
+    expected = round(value, 4)
 
     newest = await get_instance(hass).async_add_executor_job(
         get_last_statistics, hass, 1, entity_id, True, {"mean"}
@@ -115,14 +124,15 @@ async def _inject_sensor_statistics(
         rows[0]["start"] if rows and rows[0].get("start") is not None else None
     )
 
-    # Generate one StatisticData entry per missing hour before the newest one.
+    # Generate one StatisticData entry per missing or mispriced hour before the newest one.
     stats_data: list[StatisticData] = []
     current = start_dt.astimezone(dt_util.UTC)
     limit = end_dt.astimezone(dt_util.UTC)
     while current < limit:
         if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
             break
-        if int(current.timestamp()) not in present:
+        mean = stored_mean.get(int(current.timestamp()))
+        if mean is None or round(mean, 4) != expected:
             stats_data.append(StatisticData(start=current, mean=value))
         current += timedelta(hours=1)
 

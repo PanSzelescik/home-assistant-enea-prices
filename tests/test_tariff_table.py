@@ -16,6 +16,9 @@ from custom_components.enea_prices.tariffs import TARIFFS, TariffGroup, TariffPe
 
 ONE_DAY = datetime.timedelta(days=1)
 
+TARIFF_PRICED = sorted(name for name, group in TARIFFS.items() if not group.contract_energy)
+"""Groups whose energy price comes from the URE-approved Enea S.A. tariff."""
+
 
 def _days(start: datetime.date, end: datetime.date):
     """Yield every date from start to end inclusive."""
@@ -75,19 +78,30 @@ def test_the_table_stops_at_its_own_edges(name: str) -> None:
     assert group.get_period_for_date(last) is not None
 
 
-def test_every_group_covers_the_same_span() -> None:
+def test_every_group_ends_on_the_same_day() -> None:
     """A year added to one group must be added to all of them.
 
     costs.py prices a day only when the table of the customer's own group
     covers it, so a group that lags behind the others leaves its users with
     silently missing cost statistics for the whole gap.
     """
-    spans = {name: _span(group) for name, group in TARIFFS.items()}
+    ends = {name: _span(group)[1] for name, group in TARIFFS.items()}
 
-    assert len(set(spans.values())) == 1, spans
+    assert len(set(ends.values())) == 1, ends
 
 
-@pytest.mark.parametrize("name", sorted(TARIFFS))
+def test_every_tariff_priced_group_starts_on_the_same_day() -> None:
+    """The groups priced by the URE tariff all reach back to the same day.
+
+    The contract groups start later on purpose: they did not exist before the
+    2026 distribution tariff introduced them.
+    """
+    starts = {name: _span(TARIFFS[name])[0] for name in TARIFF_PRICED}
+
+    assert len(set(starts.values())) == 1, starts
+
+
+@pytest.mark.parametrize("name", TARIFF_PRICED)
 def test_every_group_prices_every_day_of_the_capped_years(name: str) -> None:
     """1.07.2024 onwards is bundled for all three groups, not only for G12w.
 
@@ -144,7 +158,7 @@ def test_2025_boundary_rates(
     assert period.monthly.capacity_gt2800 == capacity
 
 
-@pytest.mark.parametrize("name", sorted(TARIFFS))
+@pytest.mark.parametrize("name", TARIFF_PRICED)
 def test_the_2024_to_2025_boundary_swaps_the_levies(name: str) -> None:
     """The turn of the year moves the levies, not the energy price.
 
@@ -160,3 +174,31 @@ def test_the_2024_to_2025_boundary_swaps_the_levies(name: str) -> None:
         assert (pricing.oze, pricing.cogeneration, pricing.quality) == (0.0, 0.00618, 0.0314)
     for pricing in start_of_2025.zones.values():
         assert (pricing.oze, pricing.cogeneration, pricing.quality) == (0.0035, 0.0030, 0.0321)
+
+
+# Variable network rate per zone, from Enea Operator's 2026 tariff (extract,
+# points 7.5 and 7.6), and the fixed network fee for 1 and 3 phases.
+_CONTRACT_GROUP_DISTRIBUTION = [
+    ("G12sezON", {Zone.RECOMMENDED_USE: 0.0913, Zone.REMAINING: 0.2779}),
+    ("G13active", {Zone.RECOMMENDED_USE: 0.0730, Zone.REMAINING: 0.2456, Zone.RECOMMENDED_LIMIT: 0.3032}),
+]
+
+
+@pytest.mark.parametrize(("name", "network"), _CONTRACT_GROUP_DISTRIBUTION)
+def test_contract_group_distribution_2026(name: str, network: dict) -> None:
+    for period in TARIFFS[name].periods:
+        assert {zone: pricing.variable_network for zone, pricing in period.zones.items()} == network
+        assert (period.monthly.network_fixed_1phase, period.monthly.network_fixed_3phase) == (9.59, 14.56)
+
+
+@pytest.mark.parametrize("name", [name for name, _ in _CONTRACT_GROUP_DISTRIBUTION])
+def test_contract_groups_carry_no_energy_price_of_their_own(name: str) -> None:
+    """No URE decision prices their energy, so the table must not pretend to.
+
+    The 0.0 is a placeholder that with_price_changes replaces; the flag is what
+    keeps an entry from being set up without it.
+    """
+    group = TARIFFS[name]
+
+    assert group.contract_energy
+    assert {p.energy for period in group.periods for p in period.zones.values()} == {0.0}

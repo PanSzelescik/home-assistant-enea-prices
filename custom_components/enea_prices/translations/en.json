@@ -28,16 +28,60 @@
       },
       "reconfigure": {
         "title": "Change installation details",
-        "description": "Update the details used to calculate your monthly fixed fees.",
+        "description": "Update the details used to calculate your monthly fixed fees. The next step lets you change the energy prices.",
         "data": {
           "phases": "Installation type",
           "annual_kwh": "Annual energy consumption",
           "billing_months": "Billing period"
         }
       },
+      "prices": {
+        "title": "Energy prices",
+        "description": "Where should the energy price come from? If you are on a market offer (e.g. EneoPewność, EKO Oferta), or your invoice shows other prices than the URE tariff or a trade fee, choose contract prices.",
+        "menu_options": {
+          "tariff_prices": "URE tariff prices",
+          "contract": "Contract prices (copied from an invoice)"
+        }
+      },
+      "change_prices": {
+        "title": "Energy prices",
+        "description": "Your price history (each change holds until the next one; the URE tariff before the first):\n{history}\n\nAdd new prices from the day you started paying them – earlier months keep their prices. To fix a typo, enter the prices again with the same date as the latest change.",
+        "menu_options": {
+          "keep_prices": "Keep prices unchanged",
+          "contract": "New contract prices from…",
+          "tariff_prices": "Back to the URE tariff from…",
+          "clear_prices": "Remove all contract prices (URE tariff everywhere)"
+        }
+      },
+      "tariff_from": {
+        "title": "Back to the URE tariff",
+        "description": "From this day energy is priced by the URE tariff again, with no trade fee.",
+        "data": {
+          "valid_from": "Tariff applies from"
+        }
+      },
+      "contract": {
+        "title": "Contract prices – {tariff}",
+        "description": "Copy the prices from your invoice, section **Rozliczenie – sprzedaż energii**, column **Cena jedn. netto**. That price already includes the excise (0.005 PLN/kWh); the integration subtracts it, so the \"Energy Price (netto)\" sensors show 0.005 less. If the price changed during the billing period and the invoice has two dated lines, copy the newer one. Distribution and time zones come from the Enea Operator tariff.",
+        "data": {
+          "energy_day": "Day zone",
+          "energy_night": "Night zone",
+          "energy_peak": "Peak zone",
+          "energy_off_peak": "Off-peak zone",
+          "energy_recommended_use": "Recommended use zone",
+          "energy_remaining": "Remaining hours",
+          "energy_recommended_limit": "Recommended limit zone",
+          "trade_fee": "Trade fee",
+          "valid_from": "Prices valid from"
+        },
+        "data_description": {
+          "trade_fee": "Monthly net trade fee from the invoice (e.g. 9.82 PLN with an e-invoice). 0 if there is none.",
+          "valid_from": "The day you started paying these prices, usually the start of the contract or of a new price list. Earlier hours keep the prices they had; Energy Dashboard history from this date is recalculated on the next start. {earliest} at the earliest."
+        }
+      },
       "reconfigure_from_meter": {
         "title": "Change installation details",
-        "description": "Update the details used to calculate your monthly fixed fees. The fields show the current settings.\n\nThe meter of the Enea Licznik integration shows:\n- phases: {phases}\n- billing period (months): {billing_months}\n- annual consumption (kWh): {annual_kwh}, year up to {annual_until}",
+        "description": "Update the details used to calculate your monthly fixed fees. The fields show the current settings, and the next step lets you change the energy prices.\n\nThe meter of the Enea Licznik integration shows:\n- phases: {phases}\n- billing period (months): {billing_months}\n- annual consumption (kWh): {annual_kwh}, year up to {annual_until}",
         "data": {
           "phases": "Installation type",
           "annual_kwh": "Annual energy consumption",
@@ -45,9 +89,18 @@
         }
       }
     },
+    "error": {
+      "before_tariff": "This date is before the table for this group starts ({earliest}).",
+      "before_last_change": "This date is before the latest price change ({last}). Earlier months cannot be changed without removing the whole history."
+    },
     "abort": {
       "already_configured": "This tariff is already configured",
       "reconfigure_successful": "Configuration updated successfully"
+    }
+  },
+  "exceptions": {
+    "contract_required": {
+      "message": "Group {tariff} has no energy price in the URE tariff – enter your contract prices under Reconfigure."
     }
   },
   "entity": {
@@ -58,7 +111,10 @@
           "day": "Day",
           "night": "Night",
           "peak": "Peak",
-          "off_peak": "Off-Peak"
+          "off_peak": "Off-Peak",
+          "recommended_use": "Recommended Use",
+          "remaining": "Remaining Hours",
+          "recommended_limit": "Recommended Limit"
         }
       },
       "current_price_energy":          { "name": "Current Energy Price (netto)" },
@@ -70,6 +126,9 @@
       "night_price_energy":            { "name": "Night Zone Energy Price (netto)" },
       "peak_price_energy":             { "name": "Peak Zone Energy Price (netto)" },
       "off_peak_price_energy":         { "name": "Off-Peak Zone Energy Price (netto)" },
+      "recommended_use_price_energy":  { "name": "Recommended Use Zone Energy Price (netto)" },
+      "remaining_price_energy":        { "name": "Remaining Hours Energy Price (netto)" },
+      "recommended_limit_price_energy": { "name": "Recommended Limit Zone Energy Price (netto)" },
       "day_price_total":               { "name": "Day Zone Total Price (netto)" },
       "day_price_total_brutto":        { "name": "Day Zone Total Price (brutto)" },
       "night_price_total":             { "name": "Night Zone Total Price (netto)" },
@@ -78,14 +137,26 @@
       "peak_price_total_brutto":       { "name": "Peak Zone Total Price (brutto)" },
       "off_peak_price_total":          { "name": "Off-Peak Zone Total Price (netto)" },
       "off_peak_price_total_brutto":   { "name": "Off-Peak Zone Total Price (brutto)" },
+      "recommended_use_price_total":   { "name": "Recommended Use Zone Total Price (netto)" },
+      "recommended_use_price_total_brutto": { "name": "Recommended Use Zone Total Price (brutto)" },
+      "remaining_price_total":         { "name": "Remaining Hours Total Price (netto)" },
+      "remaining_price_total_brutto":  { "name": "Remaining Hours Total Price (brutto)" },
+      "recommended_limit_price_total": { "name": "Recommended Limit Zone Total Price (netto)" },
+      "recommended_limit_price_total_brutto": { "name": "Recommended Limit Zone Total Price (brutto)" },
       "day_distribution":              { "name": "Day Zone Distribution Fee (netto)" },
       "night_distribution":            { "name": "Night Zone Distribution Fee (netto)" },
       "peak_distribution":             { "name": "Peak Zone Distribution Fee (netto)" },
       "off_peak_distribution":         { "name": "Off-Peak Zone Distribution Fee (netto)" },
+      "recommended_use_distribution":  { "name": "Recommended Use Zone Distribution Fee (netto)" },
+      "remaining_distribution":        { "name": "Remaining Hours Distribution Fee (netto)" },
+      "recommended_limit_distribution": { "name": "Recommended Limit Zone Distribution Fee (netto)" },
       "day_network_fee":               { "name": "Day Zone Network Fee" },
       "night_network_fee":             { "name": "Night Zone Network Fee" },
       "peak_network_fee":              { "name": "Peak Zone Network Fee" },
       "off_peak_network_fee":          { "name": "Off-Peak Zone Network Fee" },
+      "recommended_use_network_fee":   { "name": "Recommended Use Zone Network Fee" },
+      "remaining_network_fee":         { "name": "Remaining Hours Network Fee" },
+      "recommended_limit_network_fee": { "name": "Recommended Limit Zone Network Fee" },
       "quality_fee":                   { "name": "Quality Fee" },
       "oze_fee":                       { "name": "RES Fee" },
       "cogeneration_fee":              { "name": "Cogeneration Fee" },
@@ -93,6 +164,7 @@
       "monthly_subscription":          { "name": "Subscription Fee" },
       "monthly_capacity":              { "name": "Capacity Fee" },
       "monthly_transition":            { "name": "Transition Fee" },
+      "monthly_trade_fee":             { "name": "Trade Fee" },
       "valid_from":                    { "name": "Tariff valid from" },
       "valid_until":                   { "name": "Tariff valid until (inclusive)" }
     }

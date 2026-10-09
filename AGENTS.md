@@ -3,7 +3,8 @@
 ## Czym jest ten projekt
 
 Integracja Home Assistant (custom component) podająca ceny energii elektrycznej ENEA w Polsce.
-Domena: `enea_prices`. Brak zewnętrznego API — wszystkie dane są hardkodowane z decyzji URE.
+Domena: `enea_prices`. Brak zewnętrznego API — wszystkie dane są hardkodowane z decyzji URE,
+z jednym wyjątkiem: cenę energii z umowy (oferta rynkowa) wpisuje użytkownik z faktury.
 
 Powiązany projekt: `C:\Git\home-assistant-enea` (integracja licznika Enea — odczyty zużycia).
 
@@ -12,11 +13,12 @@ Powiązany projekt: `C:\Git\home-assistant-enea` (integracja licznika Enea — o
 ```
 custom_components/enea_prices/
   __init__.py       # setup/unload, EneaPricesRuntimeData
-  config_flow.py    # 2 kroki: wybór taryfy → szczegóły instalacji (fazy, zużycie, rozliczenie)
+  config_flow.py    # 3 kroki: taryfa → szczegóły instalacji → ceny (taryfa URE / z umowy); to samo w reconfigure
   meter.py          # podpowiedzi z licznika integracji enea (MeterHint, duck typing)
   const.py          # DOMAIN, PLATFORMS, klucze konfiguracji
   tariffs.py        # model danych: TariffGroup > TariffPeriod > ZonePricing + MonthlyFees
   sensor.py         # ~25 sensory (G12): 6 dynamicznych + 10 per-strefa + 3 diagnostyczne + 4 miesięczne + 2 datowe
+                    # (+ „Opłata handlowa”, gdy wpisano ceny z umowy)
   translations/
     pl.json
     en.json
@@ -40,8 +42,41 @@ bo `costs.py` w integracji `enea` liczy to samo inline i oba wyniki muszą być 
 `AKCYZA` (0.005 zł/kWh) i `VAT_RATE` (0.23) są zdefiniowane w `tariffs.py` i re-eksportowane
 z `const.py`, skąd importuje je `enea`.
 
-`ZoneScheduleEntry` ma opcjonalne `weekdays: frozenset[int] | None` (0=Pon, 6=Nd; None=każdy dzień).
-`Zone` enum: `DAY`, `NIGHT`, `PEAK`, `OFF_PEAK`.
+`ZoneScheduleEntry` ma opcjonalne `weekdays: frozenset[int] | None` (0=Pon, 6=Nd; None=każdy dzień)
+i `months: frozenset[int] | None` (1–12; None=każdy miesiąc). Oba filtry działają tylko, gdy
+`get_zone_at_hour` dostanie `day`.
+`Zone` enum: `DAY`, `NIGHT`, `PEAK`, `OFF_PEAK`, `RECOMMENDED_USE` (zalecany pobór),
+`REMAINING` (pozostałe godziny doby), `RECOMMENDED_LIMIT` (zalecane ograniczenie).
+
+`MonthlyFees.trade` — opłata handlowa sprzedawcy; w tabeli zawsze 0.0 (taryfa URE jej nie zna),
+ustawia ją dopiero `with_price_changes`.
+
+## Ceny z umowy
+
+Klient przechodzi w czasie między taryfą a ofertami: oferta jest stała przez swój okres
+(np. 36 mies.), potem wg OWU Enea Sprzedaż § 7 sprzedawca może przysłać „Nową Ofertę” z nowym
+cennikiem (brak sprzeciwu = nowe ceny), a bez niej / po rezygnacji wraca „Taryfa Sprzedawcy”.
+Dlatego `entry.data["price_changes"]` to **historia**: lista posortowana po `valid_from`, każda
+zmiana obowiązuje do następnej, przed pierwszą — taryfa. Brak klucza = sama taryfa.
+- ceny z umowy: `{"valid_from": ISO, "energy": {strefa: cena}, "trade_fee": zł/mies.}`
+- powrót do taryfy: `{"valid_from": ISO}`
+
+Ceny są zapisane **tak, jak na fakturze — z akcyzą** („Cena jedn. netto” w sekcji
+„Rozliczenie – sprzedaż energii”: 0,5829 = 0,5779 + 0,005). `build_tariff` w `__init__.py` zamienia
+je na `PriceChange` (`invoice_price_to_energy`: −`AKCYZA`, round 4) i woła `with_price_changes`,
+który tnie okresy tabeli na granicach zmian i w odcinkach z umową podmienia `energy` każdej strefy
+oraz `monthly.trade`. Dystrybucja zostaje z tabeli. `runtime_data.tariff` to już grupa po nałożeniu
+cen — `enea` (duck typing) widzi ceny z umowy bez zmian.
+
+Rekonfiguracja **dopisuje** zmianę od daty (menu `change_prices`: bez zmian / nowe ceny od… /
+powrót do taryfy od… / usuń wszystko); data nie może być wcześniejsza niż ostatnia zmiana, a ta sama
+data zastępuje ostatnią zmianę (poprawka literówki). Nadpisywanie jednego zestawu cen byłoby
+błędem: przepisywanie statystyk wstecz zamieniłoby historię poprzedniej oferty na taryfę.
+
+`TariffGroup.contract_energy=True` (G12sezON, G13active): grupa nie ma ceny energii w taryfie URE,
+`energy` w tabeli to 0.0. Bez żadnej zmiany z cenami setup rzuca `ConfigEntryError`;
+`with_price_changes` odrzuca jej dni poza odcinkami z umową, a menu nie oferuje powrotu do taryfy.
+Cen ofert nie hardkodujemy — każda oferta ma inne, zamrożone od podpisania umowy.
 
 ⚠️ **`energy` znaczy co innego w różnych okresach.** W okresach objętych rządowym mrożeniem
 (cały 2025) pole zawiera **cenę efektywną po zastosowaniu ceny maksymalnej**, a nie cenę
@@ -60,8 +95,19 @@ w komentarzu obok wpisu. Szczegóły mechanizmu i progi dokładności — w kome
 - **Szczyt** (Zone.PEAK): Pon–Pt 06:00–21:00, z wyłączeniem dni ustawowo wolnych od pracy
 - **Poza szczytem** (Zone.OFF_PEAK): Pon–Pt poza szczytem + cała Sob–Nd + dni ustawowo wolne
 
+**G12sezON** – sezonowa, strefy z taryfy Enea Operator 2026 (pkt 2.2.10):
+- **Zalecany pobór** (Zone.RECOMMENDED_USE): IV–IX 04–06 i 09–17; X–III 22–06 i 11–13
+- **Pozostałe godziny** (Zone.REMAINING): reszta doby
+
+**G13active** – trzy strefy, harmonogram inny w każdym miesiącu (pkt 2.2.11, tabela w `tariffs.py`).
+Uwaga: październik ma pozostałe godziny 23–07, nie 23–06.
+
+G12sezON i G13active nie rozróżniają dni roboczych — święta nie mają znaczenia.
+G11pewna i G12as **celowo nieobsługiwane**: ich stawka sieciowa zależy od zużycia w okresie
+(próg 250 kWh / zużycie sprzed roku), czego `enea_prices` nie zna.
+
 Odświeżanie sensorów dynamicznych: godziny z `get_zone_change_hours()` + 0:00 (via `async_track_time_change`).
-Zmiana strefy przy Sob/Nd i świętach obsługiwana przez refresh o 0:00.
+Zmiana strefy przy Sob/Nd, świętach i zmianie miesiąca obsługiwana przez refresh o 0:00.
 
 ## Obsługa świąt (G12w)
 
@@ -84,8 +130,10 @@ do wczoraj, więc dopisanie okresu wstecz backfilluje go przy najbliższym starc
 Rząd wielkości jednorazowego backfillu roku: 8760 h × `len(ZONE_PRICE_ATTRS)` × liczba stref
 (dla G12/G12w ≈ 35 tys. wierszy).
 Wywołanie następuje automatycznie przy starcie integracji (`sensor.py:async_setup_entry`).
-Przy każdym uruchomieniu zapisywane są tylko godziny brakujące w oknie okresu
-(`statistics_during_period`), i wyłącznie te sprzed najnowszej zapisanej statystyki
+Przy każdym uruchomieniu zapisywane są godziny brakujące w oknie okresu albo zapisane z inną
+ceną (`statistics_during_period` z `mean`, porównanie po `round(…, 4)` — rekorder trzyma
+zaokrągloną wartość stanu) — dzięki temu ceny z umowy z datą wsteczną, ich zmiana lub usunięcie
+poprawiają historię. Zapisywane są wyłącznie godziny sprzed najnowszej zapisanej statystyki
 (`get_last_statistics`) — godziny na końcu i za nią należą do rekordera, który sam
 kompiluje statystyki tych sensorów; import tej samej godziny ścigałby się z jego
 ślepym INSERT-em i wycofywał całą paczkę nadrabianych statystyk.
@@ -162,6 +210,11 @@ Opłata mocowa zawieszona 1.01–30.06.2025; opłata przejściowa jeszcze obowi�
 
 ## Źródła danych
 
+**2026, G12sezON/G13active** — tylko dystrybucja: wyciąg z taryfy Enea Operator (decyzja
+DRE.WRE.4211.52.11.2025.TG z 17.12.2025), strefy pkt 2.2.10–2.2.11, stawki pkt 7.5–7.6
+(stawki zmienne w `tariffs.py`, opłata stała 9,59/14,56 jak G12). Taryfa sprzedaży
+Enea S.A. (DRE.WRE.4211.51.8.2025.TG) obejmuje wyłącznie G11/G12/G12w/G11p/G12p.
+
 Decyzje Prezesa URE dla taryf sprzedaży Enea S.A. (PDF) — `docs/decyzje-ure/`, indeks w `README.md`
 tego katalogu.
 
@@ -201,3 +254,5 @@ brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.0
 | G11 | 1 (całodobowa) | |
 | G12 | 2 (dzień/noc) | |
 | G12w | 2 (szczyt/poza szczytem) | Tygodniowy harmonogram; dni ustawowo wolne obsługiwane (pakiet `holidays`) |
+| G12sezON | 2 (zalecany pobór/pozostałe) | Od 2026; harmonogram sezonowy; cena energii tylko z umowy |
+| G13active | 3 (zalecany pobór/pozostałe/zalecane ograniczenie) | Od 2026; harmonogram co miesiąc; cena energii tylko z umowy |

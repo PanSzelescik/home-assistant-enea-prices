@@ -20,6 +20,16 @@ CONF_PHASES = "phases"
 CONF_ANNUAL_KWH = "annual_kwh"
 CONF_BILLING_MONTHS = "billing_months"
 
+# Historia cen energii klienta: taryfa URE ↔ oferty rynkowe.  Lista posortowana po dacie;
+# każda zmiana obowiązuje do następnej, przed pierwszą – taryfa.  Brak klucza = sama taryfa.
+#   ceny z umowy:     {"valid_from": "RRRR-MM-DD", "energy": {strefa: cena z faktury Z AKCYZĄ},
+#                      "trade_fee": zł/mies.}
+#   powrót do taryfy: {"valid_from": "RRRR-MM-DD"}
+CONF_PRICE_CHANGES = "price_changes"
+CHANGE_VALID_FROM = "valid_from"
+CHANGE_ENERGY = "energy"
+CHANGE_TRADE_FEE = "trade_fee"
+
 # --- Defaults ---
 DEFAULT_PHASES = "3"
 DEFAULT_ANNUAL_KWH = "2000"
