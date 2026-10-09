@@ -155,7 +155,7 @@ Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-ene
 | G12 | Dwustrefowa (dzień/noc) | ✅ Dostępna |
 | G12w | Dwustrefowa weekendowa (szczyt/poza szczytem) | ✅ Dostępna |
 | G12sezON | Dwustrefowa sezonowa (zalecany pobór/pozostałe godziny), od 2026 | ✅ Dostępna — cena energii z umowy |
-| G13active | Trójstrefowa, harmonogram co miesiąc (zalecany pobór/pozostałe/zalecane ograniczanie), od 2026 | ✅ Dostępna — cena energii z umowy |
+| G13active | Trójstrefowa, harmonogram co miesiąc (zalecany pobór/pozostałe/zalecane ograniczenie), od 2026 | ✅ Dostępna — cena energii z umowy |
 | G11pewna, G12as | Stawka dystrybucyjna zależna od zużycia w okresie | ❌ Nieobsługiwana |
 
 ### Strefy G12sezON
@@ -167,7 +167,7 @@ Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-ene
 
 ### Strefy G13active
 
-| Miesiąc | Zalecany pobór (najtańsza) | Zalecane ograniczanie (najdroższa) |
+| Miesiąc | Zalecany pobór (najtańsza) | Zalecane ograniczenie (najdroższa) |
 |---------|----------------------------|------------------------------------|
 | styczeń | 23–6 | 7–10, 15–20 |
 | luty | 23–6 | 7–9, 16–21 |

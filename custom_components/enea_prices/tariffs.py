@@ -27,7 +27,7 @@ class Zone(StrEnum):
     REMAINING = "remaining"
     """Pozostałe godziny doby (G12sezON, G13active)."""
     RECOMMENDED_LIMIT = "recommended_limit"
-    """Strefa zalecanego ograniczania (G13active)."""
+    """Strefa zalecanego ograniczenia (G13active)."""
 
 
 @dataclass(frozen=True)

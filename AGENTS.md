@@ -46,7 +46,7 @@ z `const.py`, skąd importuje je `enea`.
 i `months: frozenset[int] | None` (1–12; None=każdy miesiąc). Oba filtry działają tylko, gdy
 `get_zone_at_hour` dostanie `day`.
 `Zone` enum: `DAY`, `NIGHT`, `PEAK`, `OFF_PEAK`, `RECOMMENDED_USE` (zalecany pobór),
-`REMAINING` (pozostałe godziny doby), `RECOMMENDED_LIMIT` (zalecane ograniczanie).
+`REMAINING` (pozostałe godziny doby), `RECOMMENDED_LIMIT` (zalecane ograniczenie).
 
 `MonthlyFees.trade` — opłata handlowa sprzedawcy; w tabeli zawsze 0.0 (taryfa URE jej nie zna),
 ustawia ją dopiero `with_price_changes`.
@@ -255,4 +255,4 @@ brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.0
 | G12 | 2 (dzień/noc) | |
 | G12w | 2 (szczyt/poza szczytem) | Tygodniowy harmonogram; dni ustawowo wolne obsługiwane (pakiet `holidays`) |
 | G12sezON | 2 (zalecany pobór/pozostałe) | Od 2026; harmonogram sezonowy; cena energii tylko z umowy |
-| G13active | 3 (zalecany pobór/pozostałe/zalecane ograniczanie) | Od 2026; harmonogram co miesiąc; cena energii tylko z umowy |
+| G13active | 3 (zalecany pobór/pozostałe/zalecane ograniczenie) | Od 2026; harmonogram co miesiąc; cena energii tylko z umowy |
