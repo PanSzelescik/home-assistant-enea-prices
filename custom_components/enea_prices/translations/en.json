@@ -19,7 +19,7 @@
       },
       "details_from_meter": {
         "title": "Installation details",
-        "description": "Details needed to calculate your monthly fixed fees. The fields were filled in from the meter of the Enea Licznik integration – check them against your invoice.\n\nThe meter shows: phases: {phases} · billing period (months): {billing_months} · annual consumption (kWh): {annual_kwh}, year up to {annual_until}. Fields marked “—” are left open by the meter and keep their defaults.",
+        "description": "Details needed to calculate your monthly fixed fees. The fields were filled in from the meter of the Enea Licznik integration – check them against your invoice.\n\nThe meter shows:\n- phases: {phases}\n- billing period (months): {billing_months}\n- annual consumption (kWh): {annual_kwh}, year up to {annual_until}\n\nFields marked “—” are left open by the meter and keep their defaults.",
         "data": {
           "phases": "Installation type",
           "annual_kwh": "Annual energy consumption",
@@ -37,7 +37,7 @@
       },
       "reconfigure_from_meter": {
         "title": "Change installation details",
-        "description": "Update the details used to calculate your monthly fixed fees. The fields show the current settings.\n\nThe meter of the Enea Licznik integration shows: phases: {phases} · billing period (months): {billing_months} · annual consumption (kWh): {annual_kwh}, year up to {annual_until}.",
+        "description": "Update the details used to calculate your monthly fixed fees. The fields show the current settings.\n\nThe meter of the Enea Licznik integration shows:\n- phases: {phases}\n- billing period (months): {billing_months}\n- annual consumption (kWh): {annual_kwh}, year up to {annual_until}",
         "data": {
           "phases": "Installation type",
           "annual_kwh": "Annual energy consumption",
