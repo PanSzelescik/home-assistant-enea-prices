@@ -13,6 +13,7 @@ Powiązany projekt: `C:\Git\home-assistant-enea` (integracja licznika Enea — o
 custom_components/enea_prices/
   __init__.py       # setup/unload, EneaPricesRuntimeData
   config_flow.py    # 2 kroki: wybór taryfy → szczegóły instalacji (fazy, zużycie, rozliczenie)
+  meter.py          # podpowiedzi z licznika integracji enea (MeterHint, duck typing)
   const.py          # DOMAIN, PLATFORMS, klucze konfiguracji
   tariffs.py        # model danych: TariffGroup > TariffPeriod > ZonePricing + MonthlyFees
   sensor.py         # ~25 sensory (G12): 6 dynamicznych + 10 per-strefa + 3 diagnostyczne + 4 miesięczne + 2 datowe
@@ -103,6 +104,28 @@ a drugi komplet ~35 tys. wierszy na grupę niczego by tam nie dodał.
 
 Personalizowane przez config_flow (fazy instalacji, roczne zużycie, okres rozliczeniowy).
 Wpływają na sensory: `monthly_network_fixed`, `monthly_subscription`, `monthly_capacity`, `monthly_transition`.
+
+### Podpowiedzi z licznika (`meter.py`)
+
+Integracja `enea` wylicza z danych licznika te same trzy ustawienia (`coordinator.detected_installation`:
+`phases`, `billing_months`, `annual_kwh` + `annual_kwh_until` — szczegóły w `AGENTS.md` repo `enea`).
+`meter_hints` czyta je przez duck typing z `entry.runtime_data.coordinator` wpisów `enea` (bez importu,
+jak `enea` czyta tę integrację); grupę dopasowuje jak `enea` — `casefold` nazwy z portalu do klucza `TARIFFS`.
+Starsza wersja `enea` bez `detected_installation` daje samą grupę.
+
+- Krok `user`: grupa wstępnie wybrana, gdy liczniki zostawiają dokładnie jedną grupę bez wpisu.
+- Krok szczegółów: z licznikiem w wybranej grupie formularz ma `step_id="details_from_meter"` — pola
+  wypełnione tym, co licznik przesądza (`form_defaults`), opis wylicza wartości z licznika („—” = nieznane).
+- Rekonfiguracja (`reconfigure_from_meter`): pola zostają przy obecnych ustawieniach, wartości z licznika
+  tylko w opisie — zapis innej zmiany nie może po cichu przejąć wartości licznika. Poprawki rozbieżności
+  proponuje `enea` w Naprawach.
+- Osobne `step_id` są tylko po to, żeby opis mógł być inny; handlery to aliasy (`async_step_details_from_meter
+  = async_step_details`).
+- Dwa liczniki w jednej grupie dzielą jeden wpis (unique_id = grupa), a ich wartości mogą się różnić — wtedy
+  `meter_hint` nic nie podpowiada.
+- `annual_kwh` we wpisie może być zmierzonym zużyciem (np. 3170, ustawionym z Napraw `enea`), nie tylko
+  wartością opcji; opłaty liczą się progami, a formularz pokazuje opcję przedziału (`annual_kwh_option`,
+  te same granice co `MonthlyFees.get_capacity`).
 
 ## Dodawanie nowej taryfy
 
