@@ -80,9 +80,15 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_details(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Step 2: installation details for monthly fee calculation."""
+        """Step 2: installation details for monthly fee calculation.
+
+        The prices step still follows, and a flow left there (dialog closed,
+        page reloaded) stays in progress until Home Assistant restarts.  So an
+        earlier flow for the same group must not block this one; whichever
+        finishes first wins, the other is turned away in _async_finish.
+        """
         if user_input is not None:
-            await self.async_set_unique_id(self._tariff_name)
+            await self.async_set_unique_id(self._tariff_name, raise_on_progress=False)
             self._abort_if_unique_id_configured()
             self._details = _details_from_input(user_input)
             return await self._async_step_prices()
@@ -290,6 +296,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if self._reconfigure_entry is not None:
             return self.async_update_reload_and_abort(self._reconfigure_entry, data=data)
+        self._abort_if_unique_id_configured()
         return self.async_create_entry(title=f"Enea Ceny {self._tariff_name}", data=data)
 
 

@@ -7,9 +7,11 @@ step before them is left out, as it is unchanged and touches the entry registry.
 from __future__ import annotations
 
 import datetime
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from homeassistant.data_entry_flow import AbortFlow
 
 from custom_components.enea_prices.config_flow import EneaPricesConfigFlow
 from custom_components.enea_prices.const import (
@@ -129,6 +131,66 @@ async def test_the_contract_is_stored_as_typed() -> None:
             "trade_fee": 9.82,
         }
     ]
+
+
+class _Registry:
+    """The hass surface a new entry's unique ID is checked against."""
+
+    def __init__(self, entries: list[str], flows: list[str]) -> None:
+        self.entries = entries
+        """Unique IDs of the entries already configured."""
+        self.flows = flows
+        """Unique IDs of other flows still in progress."""
+        self.config_entries = self
+        self.flow = self
+
+    def async_progress_by_handler(self, handler: str, **kwargs: Any) -> list[dict[str, Any]]:
+        wanted = kwargs["match_context"]["unique_id"]
+        return [
+            {"flow_id": f"other-{n}", "context": {"source": "user", "unique_id": uid}}
+            for n, uid in enumerate(self.flows)
+            if uid == wanted
+        ]
+
+    def async_entry_for_domain_unique_id(self, domain: str, unique_id: str) -> Any:
+        return SimpleNamespace(source="user") if unique_id in self.entries else None
+
+
+def _registered_flow(tariff: str, *, entries: list[str], flows: list[str]) -> EneaPricesConfigFlow:
+    flow = EneaPricesConfigFlow()
+    flow.context = {"source": "user"}
+    flow.flow_id = "flow"
+    flow.handler = DOMAIN
+    flow.hass = _Registry(entries, flows)
+    flow._tariff_name = tariff
+    return flow
+
+
+async def test_an_abandoned_flow_does_not_block_a_new_one() -> None:
+    """A flow left on the prices form lives until restart; starting again must work."""
+    flow = _registered_flow("G12sezON", entries=[], flows=["G12sezON"])
+
+    result = await flow.async_step_details({key: str(value) for key, value in DETAILS.items()})
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "contract"
+
+
+async def test_a_group_already_added_is_refused_at_the_details_step() -> None:
+    flow = _registered_flow("G12", entries=["G12"], flows=[])
+
+    with pytest.raises(AbortFlow, match="already_configured"):
+        await flow.async_step_details({key: str(value) for key, value in DETAILS.items()})
+
+
+async def test_of_two_parallel_flows_only_the_first_creates_the_entry() -> None:
+    """Both got past the details step; the other one has finished since."""
+    flow = _registered_flow("G12sezON", entries=[], flows=[])
+    await flow.async_step_details({key: str(value) for key, value in DETAILS.items()})
+    flow.hass.entries.append("G12sezON")
+
+    with pytest.raises(AbortFlow, match="already_configured"):
+        await flow.async_step_contract(dict(SEZON_INPUT))
 
 
 async def test_a_start_before_the_table_is_refused() -> None:
