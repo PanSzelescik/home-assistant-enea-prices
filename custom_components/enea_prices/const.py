@@ -10,6 +10,9 @@ from .tariffs import AKCYZA, VAT_RATE  # noqa: F401
 # --- Integration identity ---
 DOMAIN = "enea_prices"
 PLATFORMS = [Platform.SENSOR]
+# Integracja licznika (Enea Licznik): jej wykryte ustawienia instalacji podpowiadają
+# formularz, a ona sama liczy koszty i rachunek z cen tej integracji.
+ENEA_DOMAIN = "enea"
 
 # --- Config entry keys ---
 CONF_TARIFF = "tariff"

@@ -17,6 +17,15 @@
           "billing_months": "Okres rozliczeniowy"
         }
       },
+      "details_from_meter": {
+        "title": "Szczegóły instalacji",
+        "description": "Dane potrzebne do obliczenia opłat miesięcznych. Pola podpowiedziano z licznika z integracji Enea Licznik – sprawdź je z fakturą.\n\nLicznik wskazuje:\n- fazy: {phases}\n- okres rozliczeniowy (mies.): {billing_months}\n- roczne zużycie (kWh): {annual_kwh}, rok do {annual_until}\n\nPola oznaczone „—” licznik pozostawia otwarte – mają wartości domyślne.",
+        "data": {
+          "phases": "Typ instalacji",
+          "annual_kwh": "Roczne zużycie energii",
+          "billing_months": "Okres rozliczeniowy"
+        }
+      },
       "reconfigure": {
         "title": "Zmień szczegóły instalacji",
         "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych. W następnym kroku możesz zmienić ceny energii.",
@@ -68,6 +77,15 @@
         "data_description": {
           "trade_fee": "Miesięczna opłata handlowa netto z faktury (np. 9,82 zł przy e-fakturze). 0, jeśli jej nie ma.",
           "valid_from": "Dzień, od którego płacisz te ceny – zwykle początek umowy lub nowego cennika. Wcześniejsze godziny zachowają dotychczasowe ceny; historia w panelu Energia od tej daty zostanie przeliczona przy najbliższym starcie. Najwcześniej {earliest}."
+        }
+      },
+      "reconfigure_from_meter": {
+        "title": "Zmień szczegóły instalacji",
+        "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych. Pola pokazują obecne ustawienia, a w następnym kroku możesz zmienić ceny energii.\n\nLicznik z integracji Enea Licznik wskazuje:\n- fazy: {phases}\n- okres rozliczeniowy (mies.): {billing_months}\n- roczne zużycie (kWh): {annual_kwh}, rok do {annual_until}",
+        "data": {
+          "phases": "Typ instalacji",
+          "annual_kwh": "Roczne zużycie energii",
+          "billing_months": "Okres rozliczeniowy"
         }
       }
     },

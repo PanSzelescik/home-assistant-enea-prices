@@ -17,6 +17,15 @@
           "billing_months": "Billing period"
         }
       },
+      "details_from_meter": {
+        "title": "Installation details",
+        "description": "Details needed to calculate your monthly fixed fees. The fields were filled in from the meter of the Enea Licznik integration – check them against your invoice.\n\nThe meter shows:\n- phases: {phases}\n- billing period (months): {billing_months}\n- annual consumption (kWh): {annual_kwh}, year up to {annual_until}\n\nFields marked “—” are left open by the meter and keep their defaults.",
+        "data": {
+          "phases": "Installation type",
+          "annual_kwh": "Annual energy consumption",
+          "billing_months": "Billing period"
+        }
+      },
       "reconfigure": {
         "title": "Change installation details",
         "description": "Update the details used to calculate your monthly fixed fees. The next step lets you change the energy prices.",
@@ -68,6 +77,15 @@
         "data_description": {
           "trade_fee": "Monthly net trade fee from the invoice (e.g. 9.82 PLN with an e-invoice). 0 if there is none.",
           "valid_from": "The day you started paying these prices, usually the start of the contract or of a new price list. Earlier hours keep the prices they had; Energy Dashboard history from this date is recalculated on the next start. {earliest} at the earliest."
+        }
+      },
+      "reconfigure_from_meter": {
+        "title": "Change installation details",
+        "description": "Update the details used to calculate your monthly fixed fees. The fields show the current settings, and the next step lets you change the energy prices.\n\nThe meter of the Enea Licznik integration shows:\n- phases: {phases}\n- billing period (months): {billing_months}\n- annual consumption (kWh): {annual_kwh}, year up to {annual_until}",
+        "data": {
+          "phases": "Installation type",
+          "annual_kwh": "Annual energy consumption",
+          "billing_months": "Billing period"
         }
       }
     },

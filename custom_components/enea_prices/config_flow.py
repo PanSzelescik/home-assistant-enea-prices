@@ -36,10 +36,13 @@ from .const import (
     DOMAIN,
     PHASES_OPTIONS,
 )
+from .meter import MeterHint, annual_kwh_option, form_defaults, meter_hint, meter_hints
 from .tariffs import AKCYZA, TARIFFS, TariffGroup, Zone
 
 # Pole formularza z ceną energii danej strefy, np. "energy_day".
 _ENERGY_FIELD = "energy_{}"
+# Shown for a fact the meter does not settle.
+_UNKNOWN = "—"
 
 
 class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -58,16 +61,27 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Step 1: select tariff group."""
+        """Step 1: select tariff group.
+
+        Pre-selected when the Enea meters leave exactly one group without an
+        entry.
+        """
         if user_input is not None:
             self._tariff_name = user_input[CONF_TARIFF]
             return await self.async_step_details()
 
+        configured = {entry.data[CONF_TARIFF] for entry in self._async_current_entries()}
+        unpriced = {hint.tariff for hint in meter_hints(self.hass)} - configured
+        tariff = (
+            vol.Required(CONF_TARIFF, default=next(iter(unpriced)))
+            if len(unpriced) == 1
+            else vol.Required(CONF_TARIFF)
+        )
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_TARIFF): SelectSelector(
+                    tariff: SelectSelector(
                         SelectSelectorConfig(
                             options=list(TARIFFS.keys()),
                             mode=SelectSelectorMode.DROPDOWN,
@@ -86,6 +100,9 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
         page reloaded) stays in progress until Home Assistant restarts.  So an
         earlier flow for the same group must not block this one; whichever
         finishes first wins, the other is turned away in _async_finish.
+
+        With an Enea meter in the chosen group, the facts it settles pre-fill
+        the form, under a description that lists them.
         """
         if user_input is not None:
             await self.async_set_unique_id(self._tariff_name, raise_on_progress=False)
@@ -93,15 +110,37 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             self._details = _details_from_input(user_input)
             return await self._async_step_prices()
 
+        hint = meter_hint(self.hass, self._tariff_name)
+        if hint is None:
+            return self.async_show_form(
+                step_id="details",
+                data_schema=_details_schema(),
+            )
+
+        defaults = form_defaults(hint)
         return self.async_show_form(
-            step_id="details",
-            data_schema=_details_schema(),
+            step_id="details_from_meter",
+            data_schema=_details_schema(
+                default_phases=defaults.get(CONF_PHASES, DEFAULT_PHASES),
+                default_annual_kwh=defaults.get(CONF_ANNUAL_KWH, DEFAULT_ANNUAL_KWH),
+                default_billing_months=defaults.get(CONF_BILLING_MONTHS, DEFAULT_BILLING_MONTHS),
+            ),
+            description_placeholders=_hint_placeholders(hint),
         )
+
+    # The pre-filled form only differs in its description, which needs a step id
+    # of its own; what it sends back is handled the same.
+    async_step_details_from_meter = async_step_details
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Allow user to change installation details and prices without removing the integration."""
+        """Allow user to change installation details and prices without removing the integration.
+
+        The form keeps the entry's settings; what an Enea meter settles is only
+        listed in the description, so that saving another change cannot
+        quietly replace a setting the user chose.
+        """
         entry = self._get_reconfigure_entry()
         if user_input is not None:
             self._reconfigure_entry = entry
@@ -110,14 +149,23 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             self._changes = [dict(c) for c in entry.data.get(CONF_PRICE_CHANGES, [])]
             return self._async_show_change_menu()
 
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=_details_schema(
-                default_phases=str(entry.data[CONF_PHASES]),
-                default_annual_kwh=str(entry.data[CONF_ANNUAL_KWH]),
-                default_billing_months=str(entry.data[CONF_BILLING_MONTHS]),
-            ),
+        schema = _details_schema(
+            default_phases=str(entry.data[CONF_PHASES]),
+            # A measured consumption (set from a repair of the enea integration)
+            # is shown as the option of its bracket.
+            default_annual_kwh=annual_kwh_option(entry.data[CONF_ANNUAL_KWH]),
+            default_billing_months=str(entry.data[CONF_BILLING_MONTHS]),
         )
+        hint = meter_hint(self.hass, entry.data[CONF_TARIFF])
+        if hint is None:
+            return self.async_show_form(step_id="reconfigure", data_schema=schema)
+        return self.async_show_form(
+            step_id="reconfigure_from_meter",
+            data_schema=schema,
+            description_placeholders=_hint_placeholders(hint),
+        )
+
+    async_step_reconfigure_from_meter = async_step_reconfigure
 
     async def _async_step_prices(self) -> ConfigFlowResult:
         """Step 3 of a new entry: where the energy price comes from.
@@ -298,6 +346,18 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_update_reload_and_abort(self._reconfigure_entry, data=data)
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title=f"Enea Ceny {self._tariff_name}", data=data)
+
+
+def _hint_placeholders(hint: MeterHint) -> dict[str, str]:
+    """Return what a meter settles, for the description of a form."""
+    return {
+        "phases": _UNKNOWN if hint.phases is None else str(hint.phases),
+        "billing_months": _UNKNOWN if hint.billing_months is None else str(hint.billing_months),
+        "annual_kwh": _UNKNOWN if hint.annual_kwh is None else str(round(hint.annual_kwh)),
+        "annual_until": (
+            _UNKNOWN if hint.annual_kwh_until is None else hint.annual_kwh_until.isoformat()
+        ),
+    }
 
 
 def _format_history(changes: list[dict[str, Any]]) -> str:
