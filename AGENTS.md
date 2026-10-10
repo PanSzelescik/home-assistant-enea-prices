@@ -260,3 +260,10 @@ brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.0
 | G12w | 2 (szczyt/poza szczytem) | Tygodniowy harmonogram; dni ustawowo wolne obsługiwane (pakiet `holidays`) |
 | G12sezON | 2 (zalecany pobór/pozostałe) | Od 2026; harmonogram sezonowy; cena energii tylko z umowy |
 | G13active | 3 (zalecany pobór/pozostałe/zalecane ograniczenie) | Od 2026; harmonogram co miesiąc; cena energii tylko z umowy |
+
+## Testy
+
+- **Bez HA** (`conftest.py`): tabele taryf, platforma sensorów i statystyki na atrapach (`FakeHass`, `_Recorder`).
+- **Działający HA** (`tests/ha_instance.py`, testy `test_setup_entry.py`, `test_scenarios.py`): prawdziwy `HomeAssistant` zbudowany jak w bootstrapie (`bootstrap.async_load_base_functionality`), bez pakietu testowego HA. Podmienione: statystyki recordera (`StatisticsDatabase`, w pamięci), zegar (`Clock`: `dt_util.now` w strefie Europe/Warsaw, a `date.today()` w `tariffs` w UTC — jak kontener bez `TZ`) i wywołania o porze dnia (`TimeTriggers`, test sam „odpala” godzinę). Scenariusze: config flow od początku do końca, ceny z umowy i ich zmiana wstecz, powrót do taryfy, grupa tylko z umową, święto w G12w, restart bez ponownego importu, nadrabianie przestoju po pierwszej godzinie recordera, unload.
+- **Kontrakt z prawdziwą integracją `enea`** (`tests/test_enea_contract.py`): fixture `real_enea` ładuje jej kod z checkoutu `home-assistant-enea` (`ENEA_PATH` albo katalog obok tego repo; bez checkoutu testy są pomijane, błędna `ENEA_PATH` je oblewa; CI pobiera repo drugim `actions/checkout`). Sprawdzane: klucze wpisu i domeny, nazwy stref w `COST_ZONE_DISPLAY`, aliasy grup, `AKCYZA`, cena kWh w kosztach `enea` == `total_brutto`, opłaty miesięczne, wyszukanie wpisu przez `find_prices_config`, `TariffHistory` z prawdziwymi grupami, podpowiedzi z prawdziwego koordynatora i przeładowanie liczników grupy. Lustrzany test jest w repo `enea` (`test_enea_prices_contract.py`).
+- **Pokrycie**: `coverage` z rozgałęzieniami; CI wkleja raport do podsumowania i zapisuje XML/HTML jako artefakt.

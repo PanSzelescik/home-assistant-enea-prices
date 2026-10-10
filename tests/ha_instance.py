@@ -10,9 +10,13 @@ TimeTriggers and fired by the test, at the hour it says.
 """
 from __future__ import annotations
 
+import importlib
+import os
+import sys
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import date, datetime, time
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -259,3 +263,38 @@ async def hass(tmp_path, clock, database, triggers):
     instance = await async_start_hass(str(tmp_path))
     yield instance
     await instance.async_stop(force=True)
+
+
+def find_enea_repository() -> Path | None:
+    """Return a checkout of home-assistant-enea, None when there is none.
+
+    ENEA_PATH names it (CI checks it out there); otherwise a checkout next to
+    this repository is used.
+    """
+    configured = os.environ.get("ENEA_PATH")
+    candidate = (
+        Path(configured) if configured
+        else Path(__file__).resolve().parents[2] / "home-assistant-enea"
+    )
+    if (candidate / "custom_components" / "enea" / "manifest.json").is_file():
+        return candidate
+    return None
+
+
+@pytest.fixture
+def real_enea(monkeypatch: pytest.MonkeyPatch):
+    """Load the real Enea Licznik integration's package from its checkout.
+
+    Skipped when no checkout is found, failed when ENEA_PATH names one that is
+    not there — CI sets it, so the contract is never skipped there.
+    """
+    repository = find_enea_repository()
+    if repository is None:
+        if os.environ.get("ENEA_PATH"):
+            pytest.fail(f"ENEA_PATH={os.environ['ENEA_PATH']} has no enea integration")
+        pytest.skip("enea not found: set ENEA_PATH or check it out next to this repository")
+    monkeypatch.syspath_prepend(str(repository))
+    package = importlib.import_module("custom_components.enea")
+    yield package
+    for name in [name for name in sys.modules if name.startswith("custom_components.enea.") or name == "custom_components.enea"]:
+        del sys.modules[name]
