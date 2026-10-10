@@ -40,6 +40,10 @@ async def async_inject_price_statistics(hass: HomeAssistant, group: TariffGroup)
     today = dt_util.now().date()
     yesterday = today - timedelta(days=1)
 
+    # Every period of one sensor goes in one import: what the recorder already
+    # owns has to be read before anything is written, or the first period's
+    # own rows would pass for the recorder's and hide every later period.
+    spans: dict[str, list[tuple[float, date, date]]] = {}
     for period in group.periods:
         if period.valid_from > yesterday:
             continue  # future period, nothing to inject yet
@@ -51,21 +55,23 @@ async def async_inject_price_statistics(hass: HomeAssistant, group: TariffGroup)
                 entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
                 if entity_id is None:
                     continue
-
-                price_value: float = getattr(pricing, attr)
-                await _inject_sensor_statistics(
-                    hass, entity_id, price_value, period.valid_from, period_end
+                spans.setdefault(entity_id, []).append(
+                    (getattr(pricing, attr), period.valid_from, period_end)
                 )
+
+    for entity_id, sensor_spans in spans.items():
+        await _inject_sensor_statistics(hass, entity_id, sensor_spans)
 
 
 async def _inject_sensor_statistics(
     hass: HomeAssistant,
     entity_id: str,
-    value: float,
-    valid_from: date,
-    end_date: date,
+    spans: list[tuple[float, date, date]],
 ) -> None:
     """Inject hourly mean statistics for one price sensor, backfilling gaps.
+
+    spans are the sensor's (price, first day, last day) in every period it
+    has a price in, oldest first.
 
     Checks which hours are actually missing across the whole period window
     instead of looking only at the newest stored entry, so an older tariff
@@ -88,21 +94,28 @@ async def _inject_sensor_statistics(
     Hours the sensor was dead for become gaps behind the recorder's newest
     row once it writes again, and the next run fills them then.
 
-    The window runs from local midnight on valid_from to local midnight after
-    end_date, and the hours inside it are stepped through in UTC, so the days
-    the clocks change get the 23 or 25 hours they really have.
+    Each span runs from local midnight on its first day to local midnight
+    after its last, and the hours inside it are stepped through in UTC, so the
+    days the clocks change get the 23 or 25 hours they really have.
     """
-    start_dt = dt_util.start_of_local_day(valid_from)
-    end_dt = dt_util.start_of_local_day(end_date + timedelta(days=1))
-    if start_dt >= end_dt:
+    windows = [
+        (
+            value,
+            dt_util.start_of_local_day(first),
+            dt_util.start_of_local_day(last + timedelta(days=1)),
+        )
+        for value, first, last in spans
+    ]
+    windows = [(value, start, end) for value, start, end in windows if start < end]
+    if not windows:
         return
 
     existing = await get_instance(hass).async_add_executor_job(
         partial(
             statistics_during_period,
             hass,
-            start_dt,
-            end_dt,
+            windows[0][1],
+            windows[-1][2],
             {entity_id},
             "hour",
             None,
@@ -114,7 +127,6 @@ async def _inject_sensor_statistics(
         for row in existing.get(entity_id, [])
         if row.get("start") is not None
     }
-    expected = round(value, 4)
 
     newest = await get_instance(hass).async_add_executor_job(
         get_last_statistics, hass, 1, entity_id, True, {"mean"}
@@ -124,17 +136,19 @@ async def _inject_sensor_statistics(
         rows[0]["start"] if rows and rows[0].get("start") is not None else None
     )
 
-    # Generate one StatisticData entry per missing or mispriced hour before the newest one.
+    # One StatisticData entry per missing or mispriced hour before the newest one.
     stats_data: list[StatisticData] = []
-    current = start_dt.astimezone(dt_util.UTC)
-    limit = end_dt.astimezone(dt_util.UTC)
-    while current < limit:
-        if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
-            break
-        mean = stored_mean.get(int(current.timestamp()))
-        if mean is None or round(mean, 4) != expected:
-            stats_data.append(StatisticData(start=current, mean=value))
-        current += timedelta(hours=1)
+    for value, start_dt, end_dt in windows:
+        expected = round(value, 4)
+        current = start_dt.astimezone(dt_util.UTC)
+        limit = end_dt.astimezone(dt_util.UTC)
+        while current < limit:
+            if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
+                break
+            mean = stored_mean.get(int(current.timestamp()))
+            if mean is None or round(mean, 4) != expected:
+                stats_data.append(StatisticData(start=current, mean=value))
+            current += timedelta(hours=1)
 
     if not stats_data:
         return
@@ -151,6 +165,6 @@ async def _inject_sensor_statistics(
     )
     async_import_statistics(hass, metadata, stats_data)
     _LOGGER.debug(
-        "Injected %d price stats for %s (%.4f %s, %s → %s)",
-        len(stats_data), entity_id, value, UNIT_PRICE, valid_from, end_date,
+        "Injected %d price stats for %s (%s → %s)",
+        len(stats_data), entity_id, spans[0][1], spans[-1][2],
     )

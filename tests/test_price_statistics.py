@@ -32,7 +32,7 @@ async def test_writes_every_hour_when_nothing_is_stored(wired) -> None:
     store = wired([])
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 2)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 2))]
     )
 
     assert len(store.starts) == 48
@@ -53,7 +53,7 @@ async def test_hours_after_the_newest_statistic_are_left_to_the_recorder(wired) 
     store = wired(_hours(datetime.date(2026, 1, 1)))
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 2)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 2))]
     )
 
     assert store.injected == []
@@ -68,7 +68,7 @@ async def test_the_hour_a_shutdown_cut_short_is_not_imported(wired) -> None:
     store = wired(_hours(datetime.date(2026, 1, 1), 23))
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 1)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 1))]
     )
 
     assert store.injected == []
@@ -87,7 +87,7 @@ async def test_an_hour_committed_between_the_two_reads_is_not_raced(wired) -> No
     store = wired(hours[:-1], late=hours[-1])
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 1)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 1))]
     )
 
     assert store.injected == []
@@ -104,7 +104,7 @@ async def test_an_interior_gap_is_filled(wired) -> None:
     store = wired(hours)
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 1)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 1))]
     )
 
     assert store.starts == [missing]
@@ -121,7 +121,7 @@ async def test_fills_a_period_older_than_stored_data(wired) -> None:
     store = wired(_hours(datetime.date(2026, 1, 1)))
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.5000, datetime.date(2025, 1, 1), datetime.date(2025, 1, 2)
+        object(), ENTITY, [(0.5000, datetime.date(2025, 1, 1), datetime.date(2025, 1, 2))]
     )
 
     assert len(store.starts) == 48
@@ -137,7 +137,7 @@ async def test_fully_covered_period_writes_nothing(wired) -> None:
     store = wired(stored)
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 2)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 1, 1), datetime.date(2026, 1, 2))]
     )
 
     assert store.injected == []
@@ -148,7 +148,7 @@ async def test_inverted_range_writes_nothing(wired) -> None:
     store = wired([])
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, datetime.date(2026, 2, 1), datetime.date(2026, 1, 1)
+        object(), ENTITY, [(0.6518, datetime.date(2026, 2, 1), datetime.date(2026, 1, 1))]
     )
 
     assert store.injected == []
@@ -191,7 +191,7 @@ async def test_a_day_gets_a_price_for_every_hour_it_has(wired, day) -> None:
     """
     store = wired([])
 
-    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.6518, day, day)
+    await price_stats._inject_sensor_statistics(object(), ENTITY, [(0.6518, day, day)])
 
     assert sorted(store.starts) == _real_hours(day)
 
@@ -201,7 +201,7 @@ async def test_running_again_over_a_long_day_writes_nothing(wired) -> None:
     store = wired(_real_hours(AUTUMN_BACK))
 
     await price_stats._inject_sensor_statistics(
-        object(), ENTITY, 0.6518, AUTUMN_BACK, AUTUMN_BACK
+        object(), ENTITY, [(0.6518, AUTUMN_BACK, AUTUMN_BACK)]
     )
 
     assert store.injected == []
@@ -218,7 +218,7 @@ async def test_an_hour_stored_with_another_price_is_written_again(wired) -> None
     day = datetime.date(2026, 1, 1)
     store = wired(_hours(day) + _hours(day + datetime.timedelta(days=1)), mean=0.5779)
 
-    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.345, day, day)
+    await price_stats._inject_sensor_statistics(object(), ENTITY, [(0.345, day, day)])
 
     assert store.starts == _hours(day)
     assert {row["mean"] for _meta, rows in store.injected for row in rows} == {0.345}
@@ -233,7 +233,7 @@ async def test_a_rewrite_still_leaves_the_newest_hours_to_the_recorder(wired) ->
     day = datetime.date(2026, 1, 1)
     store = wired(_hours(day), mean=0.5779)
 
-    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.345, day, day)
+    await price_stats._inject_sensor_statistics(object(), ENTITY, [(0.345, day, day)])
 
     assert store.starts == _hours(day)[:-1]
 
@@ -249,7 +249,7 @@ async def test_a_price_differing_only_past_four_places_is_not_rewritten(wired) -
     exact = 0.5779 + 0.2779 + 0.0332 + 0.0073 + 0.0030
     store = wired(_hours(day) + _hours(day + datetime.timedelta(days=1)), mean=0.8993)
 
-    await price_stats._inject_sensor_statistics(object(), ENTITY, exact, day, day)
+    await price_stats._inject_sensor_statistics(object(), ENTITY, [(exact, day, day)])
 
     assert exact != 0.8993
     assert store.injected == []
