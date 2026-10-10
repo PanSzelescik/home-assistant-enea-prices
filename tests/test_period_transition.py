@@ -12,9 +12,9 @@ import datetime
 from typing import Any
 
 import pytest
+from homeassistant.util import dt as dt_util
 
 from custom_components.enea_prices import sensor as prices_sensor
-from custom_components.enea_prices import tariffs
 
 JANUARY = datetime.date(2026, 1, 15)
 FEBRUARY = datetime.date(2026, 2, 15)
@@ -26,25 +26,27 @@ QUALITY_FROM_FEBRUARY = 0.0332
 
 
 class _Clock:
-    """Stands in for datetime.date inside tariffs, with a settable today().
+    """Stands in for Home Assistant's dt_util.now, on a settable day at noon.
 
-    Only get_current_period() reads the clock; the tables themselves were
-    built at import time, so replacing the name afterwards is enough.
+    get_current_period() reads Home Assistant's clock; the tables themselves
+    were built at import time.
     """
 
     def __init__(self) -> None:
         self.today_is = JANUARY
 
-    def today(self) -> datetime.date:
-        """Return the date the test has moved to."""
-        return self.today_is
+    def __call__(self, time_zone: Any = None) -> datetime.datetime:
+        """Return noon of the day the test has moved to."""
+        return datetime.datetime.combine(
+            self.today_is, datetime.time(12), dt_util.get_default_time_zone()
+        )
 
 
 @pytest.fixture
 def clock(monkeypatch: pytest.MonkeyPatch) -> _Clock:
-    """Put the tariff lookup on a clock the test controls."""
+    """Put Home Assistant's clock under the test's control."""
     fake = _Clock()
-    monkeypatch.setattr(tariffs, "date", fake)
+    monkeypatch.setattr(dt_util, "now", fake)
     return fake
 
 

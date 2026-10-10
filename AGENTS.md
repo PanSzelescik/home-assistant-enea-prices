@@ -8,6 +8,10 @@ z jednym wyjątkiem: cenę energii z umowy (oferta rynkowa) wpisuje użytkownik 
 
 Powiązany projekt: `C:\Git\home-assistant-enea` (integracja licznika Enea — odczyty zużycia).
 
+## Konwencje
+
+- **„Teraz” i „dziś” wyłącznie z zegara HA:** `dt_util.now()` / `dt_util.now().date()`, nigdy `date.today()`, `datetime.now()`, `datetime.today()` ani `datetime.utcnow()`. HA trzyma swoją strefę w `dt_util` i nie ustawia strefy procesu — instalacja Container/Core bez `TZ` działa w UTC, więc przez pierwsze godziny po polskiej północy zegar procesu wskazuje wczoraj. Ta sama zasada obowiązuje w integracji `enea` (`C:\Git\home-assistant-enea`), żeby obie integracje widziały ten sam dzień; pilnuje jej `tests/test_clock.py` (AST) w obu repo. Do pomiaru odstępów czasu wolno `time.monotonic()`.
+
 ## Architektura
 
 ```

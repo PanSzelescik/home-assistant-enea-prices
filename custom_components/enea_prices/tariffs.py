@@ -7,6 +7,8 @@ from datetime import date, timedelta
 from enum import StrEnum
 from functools import lru_cache
 
+from homeassistant.util import dt as dt_util
+
 # --- Stawki podatkowe ---
 VAT_RATE = 0.23
 """Stawka podstawowa VAT na energię elektryczną (art. 41 ust. 1 ustawy o VAT)."""
@@ -223,8 +225,15 @@ class TariffGroup:
         return None
 
     def get_current_period(self) -> TariffPeriod | None:
-        """Return the period active today."""
-        return self.get_period_for_date(date.today())
+        """Return the period active today, in Home Assistant's time zone.
+
+        Not date.today(): Home Assistant never sets the process's time zone, so
+        a Container or Core installation without TZ runs in UTC, and the first
+        hours after Polish midnight would still belong to yesterday — on the day
+        a period starts, its sensors would keep the old one until the next
+        midnight.
+        """
+        return self.get_period_for_date(dt_util.now().date())
 
     @property
     def earliest_date(self) -> date:

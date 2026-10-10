@@ -8,6 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.selector import (
     DateSelector,
     NumberSelector,
@@ -240,7 +241,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._add_change({CHANGE_VALID_FROM: valid_from.isoformat()})
                 return self._async_finish()
 
-        current = user_input or {CHANGE_VALID_FROM: date.today().isoformat()}
+        current = user_input or {CHANGE_VALID_FROM: dt_util.now().date().isoformat()}
         return self.async_show_form(
             step_id="tariff_from",
             data_schema=vol.Schema(
@@ -293,7 +294,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         defaults: dict[str, Any] = {
             CHANGE_TRADE_FEE: 0.0,
-            CHANGE_VALID_FROM: date.today().isoformat(),
+            CHANGE_VALID_FROM: dt_util.now().date().isoformat(),
         }
         latest = next((c for c in reversed(self._changes) if c.get(CHANGE_ENERGY)), None)
         if latest is not None:
