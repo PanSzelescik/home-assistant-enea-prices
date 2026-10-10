@@ -24,3 +24,10 @@ Thumbs.db
 
 # Claude
 .claude/settings.local.json
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
