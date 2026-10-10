@@ -66,10 +66,22 @@ def _fields(result: dict[str, Any]) -> list[str]:
 
 
 async def test_a_tariff_group_offers_the_choice() -> None:
-    result = await _flow("G12")._async_step_prices()
+    result = await _flow("G12").async_step_prices()
 
     assert result["type"] == "menu"
     assert list(result["menu_options"]) == ["tariff_prices", "contract"]
+
+
+def _assert_steps_exist(flow: EneaPricesConfigFlow, result: dict[str, Any]) -> None:
+    """Home Assistant drops a flow whose result names a step it has no method for."""
+    for step_id in [result["step_id"], *result.get("menu_options", [])]:
+        assert hasattr(flow, f"async_step_{step_id}"), step_id
+
+
+async def test_the_prices_menu_and_its_options_are_steps() -> None:
+    flow = _flow("G12")
+
+    _assert_steps_exist(flow, await flow.async_step_prices())
 
 
 async def test_tariff_prices_store_no_history() -> None:
@@ -81,7 +93,7 @@ async def test_tariff_prices_store_no_history() -> None:
 
 async def test_a_contract_group_goes_straight_to_the_contract_form() -> None:
     """G12sezON has no tariff price to choose, so there is no menu."""
-    result = await _flow("G12sezON")._async_step_prices()
+    result = await _flow("G12sezON").async_step_prices()
 
     assert result["type"] == "form"
     assert result["step_id"] == "contract"
@@ -229,10 +241,11 @@ def reconfigured(monkeypatch: pytest.MonkeyPatch):
 
 
 async def test_reconfigure_offers_to_change_prices_from_a_date(reconfigured) -> None:
-    _, _, menu = await reconfigured({CONF_TARIFF: "G12", **DETAILS, CONF_PRICE_CHANGES: [G12_OFFER]})
+    flow, _, menu = await reconfigured({CONF_TARIFF: "G12", **DETAILS, CONF_PRICE_CHANGES: [G12_OFFER]})
 
     assert menu["step_id"] == "change_prices"
     assert list(menu["menu_options"]) == ["keep_prices", "contract", "tariff_prices", "clear_prices"]
+    _assert_steps_exist(flow, menu)
     assert menu["description_placeholders"]["history"] == (
         "- 2026-03-01: 0.6000 / 0.3000 zł/kWh, 9.82 zł/mies."
     )

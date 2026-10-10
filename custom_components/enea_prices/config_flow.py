@@ -8,7 +8,6 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult
-from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     DateSelector,
     NumberSelector,
@@ -108,7 +107,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(self._tariff_name, raise_on_progress=False)
             self._abort_if_unique_id_configured()
             self._details = _details_from_input(user_input)
-            return await self._async_step_prices()
+            return await self.async_step_prices()
 
         hint = meter_hint(self.hass, self._tariff_name)
         if hint is None:
@@ -147,7 +146,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             self._tariff_name = entry.data[CONF_TARIFF]
             self._details = _details_from_input(user_input)
             self._changes = [dict(c) for c in entry.data.get(CONF_PRICE_CHANGES, [])]
-            return self._async_show_change_menu()
+            return await self.async_step_change_prices()
 
         schema = _details_schema(
             default_phases=str(entry.data[CONF_PHASES]),
@@ -167,7 +166,12 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async_step_reconfigure_from_meter = async_step_reconfigure
 
-    async def _async_step_prices(self) -> ConfigFlowResult:
+    # A menu is a step like any other: Home Assistant drops a flow whose result
+    # names a step id without an async_step_ method, so both menus need one.
+
+    async def async_step_prices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 3 of a new entry: where the energy price comes from.
 
         A group the URE tariff prices offers a choice; a group only an offer
@@ -180,8 +184,9 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             menu_options=["tariff_prices", "contract"],
         )
 
-    @callback
-    def _async_show_change_menu(self) -> ConfigFlowResult:
+    async def async_step_change_prices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Reconfigure: keep the price history, or add a change to it.
 
         Prices change over time – an offer ends, is renewed with a new price
