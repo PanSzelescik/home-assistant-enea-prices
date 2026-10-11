@@ -75,7 +75,7 @@ def test_the_tax_rates_are_still_importable_from_const() -> None:
 def _pin_the_clock(monkeypatch: pytest.MonkeyPatch, day: datetime.date) -> None:
     """Make the dynamic sensors read their zone at local noon on the given day."""
     noon = datetime.datetime.combine(day, datetime.time(12), tzinfo=dt_util.DEFAULT_TIME_ZONE)
-    monkeypatch.setattr(prices_sensor.dt_util, "now", lambda: noon)
+    monkeypatch.setattr(prices_sensor.dt_util, "now", lambda time_zone=None: noon)
 
 
 @pytest.mark.parametrize(
@@ -113,14 +113,6 @@ async def test_the_sensor_reports_nothing_outside_the_table(platform, monkeypatc
     assert setup.sensor("current_price_total_brutto").native_value is None
 
 
-class _Clock:
-    """Stands in for datetime.date inside tariffs, pinned to a day in the table."""
-
-    def today(self) -> datetime.date:
-        """Return a day every bundled table prices."""
-        return IN_2026
-
-
 @pytest.mark.parametrize(
     "name", sorted(name for name, group in TARIFFS.items() if not group.contract_energy)
 )
@@ -131,7 +123,7 @@ async def test_every_zone_has_a_static_gross_total_too(name: str, platform, monk
     typed into a charge logger, wants the rate of a named zone, not of
     whichever zone the clock is in.
     """
-    monkeypatch.setattr(tariffs, "date", _Clock())
+    _pin_the_clock(monkeypatch, IN_2026)
     setup = await platform(name)
     period = TARIFFS[name].get_period_for_date(IN_2026)
 

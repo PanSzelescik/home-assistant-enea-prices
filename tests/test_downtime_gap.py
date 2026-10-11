@@ -37,7 +37,7 @@ async def test_the_gap_is_skipped_at_setup(wired) -> None:
     """At setup the boundary still sits before the downtime: nothing is written."""
     store = wired(BEFORE_DOWNTIME)
 
-    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.6518, *PERIOD)
+    await price_stats._inject_sensor_statistics(object(), ENTITY, [(0.6518, PERIOD[0], PERIOD[1])])
 
     assert store.injected == []
 
@@ -46,7 +46,7 @@ async def test_the_gap_is_filled_once_the_recorder_has_moved(wired) -> None:
     """One hour compiled after startup moves the boundary and unblocks the gap."""
     store = wired([*BEFORE_DOWNTIME, AFTER_RESTART])
 
-    await price_stats._inject_sensor_statistics(object(), ENTITY, 0.6518, *PERIOD)
+    await price_stats._inject_sensor_statistics(object(), ENTITY, [(0.6518, PERIOD[0], PERIOD[1])])
 
     assert len(store.starts) == HOURS_IN_PERIOD
 

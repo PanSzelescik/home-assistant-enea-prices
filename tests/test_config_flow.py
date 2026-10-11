@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.util import dt as dt_util
 
 from custom_components.enea_prices.config_flow import EneaPricesConfigFlow
 from custom_components.enea_prices.const import (
@@ -272,7 +273,7 @@ async def test_new_prices_are_added_after_the_old_ones(reconfigured) -> None:
 
     defaults = _defaults(await flow.async_step_contract())
     assert (defaults["energy_day"], defaults["trade_fee"]) == (0.6, 9.82)
-    assert defaults["valid_from"] == datetime.date.today().isoformat()
+    assert defaults["valid_from"] == dt_util.now().date().isoformat()
 
     await flow.async_step_contract(
         {"energy_day": 0.65, "energy_night": 0.32, "trade_fee": 15.94, "valid_from": "2026-09-01"}

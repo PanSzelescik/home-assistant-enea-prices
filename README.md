@@ -258,3 +258,8 @@ w katalogu [`docs/decyzje-ure/`](docs/decyzje-ure/).
   na zużycie, od 1.07.2024
 - Opłata mocowa: 0,00 zł/miesiąc od 1.07 do 31.12.2024 (art. 28 tej samej ustawy)
 - Opłata OZE 0,00 zł/MWh i kogeneracyjna 6,18 zł/MWh — za wyciągiem z taryfy
+
+## Współtworzenie
+
+Jak uruchomić testy, dodać nowe ceny i przygotować pull request — zob.
+[CONTRIBUTING.md](CONTRIBUTING.md).

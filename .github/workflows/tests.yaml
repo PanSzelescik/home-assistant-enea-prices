@@ -10,10 +10,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The real Enea Licznik integration, for the contract tests (tests/test_enea_contract.py).
+      - uses: actions/checkout@v7
+        with:
+          repository: PanSzelescik/home-assistant-enea
+          path: enea
+
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
-      - name: Run pytest
-        run: uv run --locked --group dev pytest -q
+      - name: Run pytest with coverage
+        id: tests
+        env:
+          ENEA_PATH: ${{ github.workspace }}/enea
+        run: uv run --locked --group dev coverage run -m pytest -q
+
+      - name: Generate coverage reports
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
+        run: |
+          uv run --locked --group dev coverage report
+          uv run --locked --group dev coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          uv run --locked --group dev coverage xml
+          uv run --locked --group dev coverage html
+
+      - name: Upload coverage reports
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            htmlcov/
+          if-no-files-found: error
+          retention-days: 14
