@@ -71,6 +71,7 @@ więc pull requestów w obu repo; opisz w nich, w jakiej kolejności je scalić.
 - Docstring dla każdej nowej funkcji, metody i klasy.
 - Minimalna wersja `holidays` musi być taka sama w `manifest.json` i `pyproject.toml`
   (pilnuje `tests/test_requirement_pins.py`).
+- Zawsze „Portal Odbiorcy Enea” — także w tekstach angielskich.
 - Teksty interfejsu zmieniaj w obu tłumaczeniach: `translations/pl.json` i `translations/en.json`.
 
 ## Testy
