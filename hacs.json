@@ -1,6 +1,8 @@
 {
   "name": "Enea Ceny",
   "render_readme": true,
+  "zip_release": true,
+  "filename": "enea_prices.zip",
   "country": ["PL"],
   "homeassistant": "2025.3.0"
 }
