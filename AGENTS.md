@@ -261,6 +261,13 @@ brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.0
 | G12sezON | 2 (zalecany pobór/pozostałe) | Od 2026; harmonogram sezonowy; cena energii tylko z umowy |
 | G13active | 3 (zalecany pobór/pozostałe/zalecane ograniczenie) | Od 2026; harmonogram co miesiąc; cena energii tylko z umowy |
 
+## Wydawanie nowej wersji
+
+1. Podbij `version` w `custom_components/enea_prices/manifest.json` oraz `version` w `pyproject.toml`
+2. Zacommituj (`git commit -m "Release vX.Y.Z"`) i wypchnij
+3. `gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes`
+4. Workflow `release.yaml` dołącza do wydania `enea_prices.zip` (zawartość `custom_components/enea_prices/`). HACS instaluje z niego integrację (`zip_release` w `hacs.json`) i liczy jego pobrania. Workflow kończy się błędem, gdy `version` w `manifest.json` nie odpowiada tagowi — wtedy popraw wersję i uruchom go ręcznie (`gh workflow run release.yaml -f tag=vX.Y.Z`).
+
 ## Testy
 
 - **Bez HA** (`conftest.py`): tabele taryf, platforma sensorów i statystyki na atrapach (`FakeHass`, `_Recorder`).
