@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from enum import StrEnum
 from functools import lru_cache
 
+from holidays import country_holidays
 from homeassistant.util import dt as dt_util
 
 # --- Stawki podatkowe ---
@@ -143,9 +144,13 @@ class ZoneScheduleEntry:
 
 
 @lru_cache(maxsize=10)
-def _polish_holidays(year: int) -> frozenset[date]:
-    """Return Polish public holidays for the given year (cached per year)."""
-    from holidays import country_holidays
+def polish_holidays(year: int) -> frozenset[date]:
+    """Return Polish public holidays for the given year (cached per year).
+
+    The first call imports the package's Polish module (holidays loads its
+    countries lazily, through importlib) — a blocking call on the event loop.
+    Setup makes it from the executor, so the sensors only hit the cache.
+    """
     return frozenset(country_holidays("PL", years=[year]).keys())
 
 
@@ -185,7 +190,7 @@ class TariffPeriod:
             if (
                 weekday < 5
                 and self.has_weekday_schedule
-                and day in _polish_holidays(day.year)
+                and day in polish_holidays(day.year)
             ):
                 weekday = 5  # treat public holiday as Saturday
         for entry in self.schedule:
