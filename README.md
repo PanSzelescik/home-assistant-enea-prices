@@ -5,12 +5,27 @@ Obsługuje taryfy wielostrefowe (G12 i inne) z uwzględnieniem wszystkich skład
 
 ## Instalacja
 
-1. Skopiuj katalog `custom_components/enea_prices` do swojego katalogu `custom_components` w Home Assistant
-2. Uruchom ponownie Home Assistant
-3. Przejdź do **Ustawienia → Urządzenia i usługi → Dodaj integrację** i wyszukaj „Enea Ceny"
+### Przez HACS (zalecane)
+
+[![Otwórz w HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PanSzelescik&repository=home-assistant-enea-prices)
+
+Integracja jest dostępna w domyślnym katalogu HACS — nie trzeba dodawać własnego repozytorium:
+
+1. Kliknij przycisk powyżej lub otwórz HACS → **Integracje** i wyszukaj **Enea Ceny**
+2. Kliknij **Pobierz**
+3. Uruchom ponownie Home Assistant
+
+### Ręczna instalacja
+
+1. Pobierz zawartość folderu `custom_components/enea_prices/` z tego repozytorium
+2. Skopiuj go do `<config_dir>/custom_components/enea_prices/`
+3. Uruchom ponownie Home Assistant
 
 ## Konfiguracja
 
+[![Otwórz Home Assistant i zacznij konfigurację integracji.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=enea_prices)
+
+Kliknij przycisk powyżej lub przejdź do **Ustawienia → Urządzenia i usługi → Dodaj integrację** i wyszukaj **Enea Ceny**.
 Integracja konfigurowana jest w trzech krokach:
 
 **Krok 1 – Wybór taryfy**
