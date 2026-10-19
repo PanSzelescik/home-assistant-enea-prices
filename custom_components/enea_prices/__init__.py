@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_ANNUAL_KWH,
@@ -29,6 +30,7 @@ from .tariffs import (
     TariffGroup,
     Zone,
     invoice_price_to_energy,
+    polish_holidays,
     with_price_changes,
 )
 
@@ -108,6 +110,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EneaPricesConfigEntry) -
     """Set up Enea Ceny from a config entry."""
     tariff_name: str = entry.data[CONF_TARIFF]
     group = build_tariff(tariff_name, entry.data.get(CONF_PRICE_CHANGES))
+    # The sensors look holidays up on the event loop; the first lookup imports.
+    await hass.async_add_executor_job(polish_holidays, dt_util.now().year)
 
     entry.runtime_data = EneaPricesRuntimeData(
         tariff=group,

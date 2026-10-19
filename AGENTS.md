@@ -115,9 +115,13 @@ Zmiana strefy przy Sob/Nd, świętach i zmianie miesiąca obsługiwana przez ref
 
 ## Obsługa świąt (G12w)
 
-Pakiet `holidays` w wersji z `manifest.json`. Święta pobiera `_polish_holidays(year)`
+Pakiet `holidays` w wersji z `manifest.json`. Święta pobiera `polish_holidays(year)`
 w `tariffs.py` — `country_holidays("PL", years=[year])` pod `@lru_cache`, wołane
-synchronicznie z `get_zone_at_hour` przy pierwszym zapytaniu o dany rok.
+synchronicznie z `get_zone_at_hour`. Pierwsze wywołanie importuje moduł kraju
+(`holidays` ładuje kraje leniwie przez `importlib`), czyli blokuje pętlę zdarzeń, więc
+`async_setup_entry` woła je dla bieżącego roku w executorze — sensory trafiają już w cache.
+Kolejny rok (1 stycznia) liczy się w pętli, ale bez importu. `country_holidays` importujemy
+na poziomie modułu (wymóg recenzji HACS).
 Dzień świąteczny Pon–Pt jest traktowany jak sobota przy wyborze strefy (`weekday = 5`).
 Dla taryf bez harmonogramu tygodniowego (G11, G12) sprawdzenie świąt jest pomijane —
 parametr `day` nie wpływa na wynik.

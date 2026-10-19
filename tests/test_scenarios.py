@@ -7,6 +7,7 @@ hour of a price sensor.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
 
 import pytest
@@ -14,6 +15,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_RECORDER_HOURLY_STATISTICS_GENERATED
 from homeassistant.data_entry_flow import FlowResultType
 
+from custom_components.enea_prices import tariffs
 from custom_components.enea_prices.tariffs import AKCYZA, TARIFFS
 from ha_instance import (  # noqa: F401 - clock, database, triggers and hass are fixtures
     TODAY,
@@ -181,6 +183,35 @@ async def test_g12w_holiday_is_off_peak_all_day(hass, clock, triggers):
     triggers.fire(6, clock.now)
 
     assert state(hass, "G12w", "current_zone") == "peak"
+
+
+async def test_g12w_holidays_are_loaded_off_the_event_loop(hass, clock, monkeypatch):
+    """The first holiday lookup imports the package's Polish module: setup makes it in the executor.
+
+    Made by a sensor's state write instead, it blocked the event loop — Home
+    Assistant reports it as a blocking call to import_module.
+    """
+    lookups = []
+
+    def country_holidays(*args, **kwargs):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            lookups.append("executor")
+        else:
+            lookups.append("event loop")
+        return real_country_holidays(*args, **kwargs)
+
+    real_country_holidays = tariffs.country_holidays
+    monkeypatch.setattr(tariffs, "country_holidays", country_holidays)
+    tariffs.polish_holidays.cache_clear()
+    clock.now = at_local(date(2026, 11, 11), 10)
+
+    await hass.config_entries.async_add(make_entry(tariff="G12w"))
+    await hass.async_block_till_done()
+
+    assert state(hass, "G12w", "current_zone") == "off_peak"
+    assert lookups == ["executor"]
 
 
 async def test_restart_imports_nothing_again(tmp_path, clock, database, triggers):
