@@ -29,6 +29,9 @@ def _pinned_in(requirements: list[str]) -> str:
 
     Home Assistant pins holidays itself, and hassfest rejects a custom
     integration that pins it too, so the requirement is a floor (>=).
+    Keep the floor low: one above the release a Home Assistant version ships
+    makes it upgrade holidays on disk while the old modules are already
+    imported, and the lazily loaded country modules then fail (issue #16).
     """
     pins = [
         req.removeprefix(f"{PACKAGE}>=")
