@@ -18,9 +18,12 @@ from .const import (
     CHANGE_TRADE_FEE,
     CHANGE_VALID_FROM,
     CONF_BILLING_MONTHS,
+    CONF_CONTRACT_POWER,
     CONF_PHASES,
     CONF_PRICE_CHANGES,
     CONF_TARIFF,
+    CONTRACT_POWER_ANNUAL_KWH,
+    CONTRACT_POWER_PHASES,
     DOMAIN,
     PLATFORMS,
 )
@@ -31,6 +34,7 @@ from .tariffs import (
     Zone,
     invoice_price_to_energy,
     polish_holidays,
+    with_contract_power,
     with_price_changes,
 )
 
@@ -43,6 +47,8 @@ class EneaPricesRuntimeData:
     phases: int
     annual_kwh: int
     billing_months: int
+    contract_power: float | None = None
+    """Contracted power in kW of a contract_power group (C11); None for the G groups."""
     unsub_listeners: list[Callable[[], None]] = field(default_factory=list)
 
 
@@ -92,9 +98,15 @@ def price_change_from_data(data: Mapping[str, Any]) -> PriceChange:
 
 
 def build_tariff(
-    tariff_name: str, price_changes: list[Mapping[str, Any]] | None
+    tariff_name: str,
+    price_changes: list[Mapping[str, Any]] | None,
+    contract_power: float | None = None,
 ) -> TariffGroup:
-    """Return the tariff group of an entry, priced by its history of price changes."""
+    """Return the tariff group of an entry, priced by its history of price changes.
+
+    A contract_power group also gets its fixed network fee for the entry's
+    contracted power.
+    """
     group = TARIFFS[tariff_name]
     changes = [price_change_from_data(change) for change in price_changes or []]
     if group.contract_energy and not any(c.energy is not None for c in changes):
@@ -103,21 +115,25 @@ def build_tariff(
             translation_key="contract_required",
             translation_placeholders={"tariff": tariff_name},
         )
+    if group.contract_power and contract_power is not None:
+        group = with_contract_power(group, contract_power)
     return with_price_changes(group, changes) if changes else group
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EneaPricesConfigEntry) -> bool:
     """Set up Enea Ceny from a config entry."""
     tariff_name: str = entry.data[CONF_TARIFF]
-    group = build_tariff(tariff_name, entry.data.get(CONF_PRICE_CHANGES))
+    contract_power: float | None = entry.data.get(CONF_CONTRACT_POWER)
+    group = build_tariff(tariff_name, entry.data.get(CONF_PRICE_CHANGES), contract_power)
     # The sensors look holidays up on the event loop; the first lookup imports.
     await hass.async_add_executor_job(polish_holidays, dt_util.now().year)
 
     entry.runtime_data = EneaPricesRuntimeData(
         tariff=group,
-        phases=entry.data[CONF_PHASES],
-        annual_kwh=entry.data[CONF_ANNUAL_KWH],
+        phases=entry.data.get(CONF_PHASES, CONTRACT_POWER_PHASES),
+        annual_kwh=entry.data.get(CONF_ANNUAL_KWH, CONTRACT_POWER_ANNUAL_KWH),
         billing_months=entry.data[CONF_BILLING_MONTHS],
+        contract_power=contract_power,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

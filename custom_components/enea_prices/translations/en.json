@@ -26,6 +26,17 @@
           "billing_months": "Billing period"
         }
       },
+      "details_power": {
+        "title": "Installation details",
+        "description": "Details needed to calculate your monthly fixed fees. The contracted power is in your contract or on the distribution invoice – the fixed network fee is 7.41 PLN per kW per month.",
+        "data": {
+          "contract_power": "Contracted power",
+          "billing_months": "Billing period"
+        },
+        "data_description": {
+          "contract_power": "Contracted power from your contract, in kW (C11: up to 40 kW)."
+        }
+      },
       "reconfigure": {
         "title": "Change installation details",
         "description": "Update the details used to calculate your monthly fixed fees. The next step lets you change the energy prices.",
@@ -35,27 +46,38 @@
           "billing_months": "Billing period"
         }
       },
+      "reconfigure_power": {
+        "title": "Change installation details",
+        "description": "Update the details used to calculate your monthly fixed fees. The next step lets you change the energy prices.",
+        "data": {
+          "contract_power": "Contracted power",
+          "billing_months": "Billing period"
+        },
+        "data_description": {
+          "contract_power": "Contracted power from your contract, in kW (C11: up to 40 kW)."
+        }
+      },
       "prices": {
         "title": "Energy prices",
-        "description": "Where should the energy price come from? If you are on a market offer (e.g. EneoPewność, EKO Oferta), or your invoice shows other prices than the URE tariff or a trade fee, choose contract prices.",
+        "description": "Where should the energy price come from? If you are on a market offer (e.g. EneoPewność, EKO Oferta), or your invoice shows other prices than the Enea tariff or another trade fee, choose contract prices.",
         "menu_options": {
-          "tariff_prices": "URE tariff prices",
+          "tariff_prices": "Enea tariff prices",
           "contract": "Contract prices (copied from an invoice)"
         }
       },
       "change_prices": {
         "title": "Energy prices",
-        "description": "Your price history (each change holds until the next one; the URE tariff before the first):\n{history}\n\nAdd new prices from the day you started paying them – earlier months keep their prices. To fix a typo, enter the prices again with the same date as the latest change.",
+        "description": "Your price history (each change holds until the next one; the Enea tariff before the first):\n{history}\n\nAdd new prices from the day you started paying them – earlier months keep their prices. To fix a typo, enter the prices again with the same date as the latest change.",
         "menu_options": {
           "keep_prices": "Keep prices unchanged",
           "contract": "New contract prices from…",
-          "tariff_prices": "Back to the URE tariff from…",
-          "clear_prices": "Remove all contract prices (URE tariff everywhere)"
+          "tariff_prices": "Back to the Enea tariff from…",
+          "clear_prices": "Remove all contract prices (Enea tariff everywhere)"
         }
       },
       "tariff_from": {
-        "title": "Back to the URE tariff",
-        "description": "From this day energy is priced by the URE tariff again, with no trade fee.",
+        "title": "Back to the Enea tariff",
+        "description": "From this day energy is priced by the Enea tariff again, with the tariff's own trade fee (the G groups have none).",
         "data": {
           "valid_from": "Tariff applies from"
         }
@@ -64,6 +86,7 @@
         "title": "Contract prices – {tariff}",
         "description": "Copy the prices from your invoice, section **Rozliczenie – sprzedaż energii**, column **Cena jedn. netto**. That price already includes the excise (0.005 PLN/kWh); the integration subtracts it, so the \"Energy Price (netto)\" sensors show 0.005 less. If the price changed during the billing period and the invoice has two dated lines, copy the newer one. Distribution and time zones come from the Enea Operator tariff.",
         "data": {
+          "energy_all_day": "Energy price (all day)",
           "energy_day": "Day zone",
           "energy_night": "Night zone",
           "energy_peak": "Peak zone",
@@ -114,7 +137,8 @@
           "off_peak": "Off-Peak",
           "recommended_use": "Recommended Use",
           "remaining": "Remaining Hours",
-          "recommended_limit": "Recommended Limit"
+          "recommended_limit": "Recommended Limit",
+          "capacity_hours": "Capacity Fee Hours"
         }
       },
       "current_price_energy":          { "name": "Current Energy Price (netto)" },
@@ -129,6 +153,7 @@
       "recommended_use_price_energy":  { "name": "Recommended Use Zone Energy Price (netto)" },
       "remaining_price_energy":        { "name": "Remaining Hours Energy Price (netto)" },
       "recommended_limit_price_energy": { "name": "Recommended Limit Zone Energy Price (netto)" },
+      "capacity_hours_price_energy": { "name": "Capacity Fee Hours Energy Price (netto)" },
       "day_price_total":               { "name": "Day Zone Total Price (netto)" },
       "day_price_total_brutto":        { "name": "Day Zone Total Price (brutto)" },
       "night_price_total":             { "name": "Night Zone Total Price (netto)" },
@@ -142,7 +167,9 @@
       "remaining_price_total":         { "name": "Remaining Hours Total Price (netto)" },
       "remaining_price_total_brutto":  { "name": "Remaining Hours Total Price (brutto)" },
       "recommended_limit_price_total": { "name": "Recommended Limit Zone Total Price (netto)" },
+      "capacity_hours_price_total": { "name": "Capacity Fee Hours Total Price (netto)" },
       "recommended_limit_price_total_brutto": { "name": "Recommended Limit Zone Total Price (brutto)" },
+      "capacity_hours_price_total_brutto": { "name": "Capacity Fee Hours Total Price (brutto)" },
       "day_distribution":              { "name": "Day Zone Distribution Fee (netto)" },
       "night_distribution":            { "name": "Night Zone Distribution Fee (netto)" },
       "peak_distribution":             { "name": "Peak Zone Distribution Fee (netto)" },
@@ -150,6 +177,7 @@
       "recommended_use_distribution":  { "name": "Recommended Use Zone Distribution Fee (netto)" },
       "remaining_distribution":        { "name": "Remaining Hours Distribution Fee (netto)" },
       "recommended_limit_distribution": { "name": "Recommended Limit Zone Distribution Fee (netto)" },
+      "capacity_hours_distribution": { "name": "Capacity Fee Hours Distribution Fee (netto)" },
       "day_network_fee":               { "name": "Day Zone Network Fee" },
       "night_network_fee":             { "name": "Night Zone Network Fee" },
       "peak_network_fee":              { "name": "Peak Zone Network Fee" },
@@ -157,9 +185,11 @@
       "recommended_use_network_fee":   { "name": "Recommended Use Zone Network Fee" },
       "remaining_network_fee":         { "name": "Remaining Hours Network Fee" },
       "recommended_limit_network_fee": { "name": "Recommended Limit Zone Network Fee" },
+      "capacity_hours_network_fee": { "name": "Capacity Fee Hours Network Fee" },
       "quality_fee":                   { "name": "Quality Fee" },
       "oze_fee":                       { "name": "RES Fee" },
       "cogeneration_fee":              { "name": "Cogeneration Fee" },
+      "capacity_fee":                 { "name": "Capacity Fee (per kWh)" },
       "monthly_network_fixed":         { "name": "Fixed Network Fee" },
       "monthly_subscription":          { "name": "Subscription Fee" },
       "monthly_capacity":              { "name": "Capacity Fee" },

@@ -188,17 +188,20 @@ def platform(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(prices_sensor, "async_track_time_change", _record_time_change)
 
     async def _setup(
-        tariff: str = "G12w", price_changes: list[dict[str, Any]] | None = None
+        tariff: str = "G12w",
+        price_changes: list[dict[str, Any]] | None = None,
+        contract_power: float | None = None,
     ) -> PlatformSetup:
         data: dict[str, Any] = {CONF_TARIFF: tariff}
         if price_changes is not None:
             data[CONF_PRICE_CHANGES] = price_changes
         entry = FakeConfigEntry(domain="enea_prices", data=data)
         entry.runtime_data = enea_prices.EneaPricesRuntimeData(
-            tariff=enea_prices.build_tariff(tariff, price_changes),
+            tariff=enea_prices.build_tariff(tariff, price_changes, contract_power),
             phases=1,
             annual_kwh=2000,
             billing_months=6,
+            contract_power=contract_power,
         )
         hass = FakeHass([entry])
         entities: list[Any] = []

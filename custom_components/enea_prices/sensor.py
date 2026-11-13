@@ -113,17 +113,30 @@ async def async_setup_entry(
                                    value_fn=lambda m: m.get_network_fixed(phases)),
         EneaPricesMonthlyFeeSensor(group=group, key="monthly_subscription", translation_key="monthly_subscription",
                                    value_fn=lambda m: m.get_subscription(billing_months)),
-        EneaPricesMonthlyFeeSensor(group=group, key="monthly_capacity", translation_key="monthly_capacity",
-                                   value_fn=lambda m: m.get_capacity(annual_kwh)),
-        EneaPricesMonthlyFeeSensor(group=group, key="monthly_transition", translation_key="monthly_transition",
-                                   value_fn=lambda m: m.get_transition(annual_kwh),
-                                   entity_category=EntityCategory.DIAGNOSTIC),
         # Daty obowiązywania taryfy
         EneaPricesDateSensor(group=group, key="valid_from",  translation_key="valid_from"),
         EneaPricesDateSensor(group=group, key="valid_until", translation_key="valid_until"),
     ]
-    if any(change.get(CHANGE_ENERGY) is not None for change in entry.data.get(CONF_PRICE_CHANGES, [])):
-        # Opłata handlowa istnieje tylko w ofertach rynkowych – taryfa URE jej nie zna.
+    # Opłata mocowa od kWh (grupy C) – stawka strefy wybranych godzin doby.
+    capacity_zone = next(
+        (zone for zone in active_zones if period is not None and period.zones[zone].capacity), None
+    )
+    if capacity_zone is not None:
+        static_sensors.append(_s("capacity_fee", capacity_zone, "capacity", category=EntityCategory.DIAGNOSTIC))
+    if not group.contract_power:
+        # Ryczałt mocowy i opłata przejściowa – tylko gospodarstwa domowe (grupy G).
+        static_sensors += [
+            EneaPricesMonthlyFeeSensor(group=group, key="monthly_capacity", translation_key="monthly_capacity",
+                                       value_fn=lambda m: m.get_capacity(annual_kwh)),
+            EneaPricesMonthlyFeeSensor(group=group, key="monthly_transition", translation_key="monthly_transition",
+                                       value_fn=lambda m: m.get_transition(annual_kwh),
+                                       entity_category=EntityCategory.DIAGNOSTIC),
+        ]
+    if any(change.get(CHANGE_ENERGY) is not None for change in entry.data.get(CONF_PRICE_CHANGES, [])) or any(
+        p.monthly.trade for p in group.periods
+    ):
+        # Opłata handlowa: z ofert rynkowych albo z taryfy sprzedawcy, która ją zna (grupy C);
+        # taryfa URE dla grup G jej nie zna.
         static_sensors.append(
             EneaPricesMonthlyFeeSensor(group=group, key="monthly_trade_fee", translation_key="monthly_trade_fee",
                                        value_fn=lambda m: m.trade)

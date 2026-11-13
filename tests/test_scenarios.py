@@ -274,3 +274,35 @@ async def test_unload_stops_the_time_callbacks(hass, triggers):
     assert await hass.config_entries.async_unload(entry.entry_id)
 
     assert triggers.callbacks == []
+
+
+async def test_c11_through_the_config_flow(hass, clock, database, triggers):
+    """C11 asks for contracted power, prices the capacity fee hours apart, and
+    leaves them at 22:00 – no zone starts there, so the end has its own trigger."""
+    clock.now = at_local(date(2026, 11, 4), 10)  # a Wednesday
+    flow = await hass.config_entries.flow.async_init("enea_prices", context={"source": "user"})
+    flow = await hass.config_entries.flow.async_configure(flow["flow_id"], {"tariff": "C11"})
+    assert flow["step_id"] == "details_power"
+    flow = await hass.config_entries.flow.async_configure(
+        flow["flow_id"], {"contract_power": 10, "billing_months": "1"}
+    )
+    flow = await hass.config_entries.flow.async_configure(flow["flow_id"], {"next_step_id": "tariff_prices"})
+    assert flow["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    [entry] = hass.config_entries.async_entries("enea_prices")
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.data == {"tariff": "C11", "contract_power": 10.0, "billing_months": 1}
+    assert state(hass, "C11", "current_zone") == "capacity_hours"
+    assert state(hass, "C11", "current_price_total") == "1.3813"
+    assert state(hass, "C11", "monthly_network_fixed") == "74.1"
+    assert state(hass, "C11", "monthly_trade_fee") == "35.0"
+
+    clock.now = at_local(date(2026, 11, 4), 22)
+    triggers.fire(22, clock.now)
+    assert state(hass, "C11", "current_zone") == "remaining"
+    assert state(hass, "C11", "current_price_total") == "1.1619"
+
+    peak_total = entity_id(hass, "C11", "capacity_hours_price_total")
+    assert database.mean_at(peak_total, at_local(date(2026, 2, 2), 12)) == pytest.approx(1.3813)
+    assert database.mean_at(peak_total, at_local(date(2026, 1, 30), 12)) is None
