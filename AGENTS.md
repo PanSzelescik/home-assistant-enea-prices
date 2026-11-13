@@ -40,7 +40,8 @@ TariffGroup (np. "G12")
 ```
 
 `ZonePricing` ma właściwości netto: `energy`, `variable_network`, `quality`, `oze`, `cogeneration`,
-`total_distribution`, `total` — oraz jedną brutto: `total_brutto`
+`capacity` (opłata mocowa od kWh, tylko grupy C; domyślnie 0.0), `total_distribution` (suma pięciu
+składników, `capacity` na końcu — dla grup G to `+ 0.0`), `total` — oraz jedną brutto: `total_brutto`
 = `(energy + AKCYZA + total_distribution) × (1 + VAT_RATE)`, w tej kolejności dodawania,
 bo `costs.py` w integracji `enea` liczy to samo inline i oba wyniki muszą być identyczne co do bitu.
 `AKCYZA` (0.005 zł/kWh) i `VAT_RATE` (0.23) są zdefiniowane w `tariffs.py` i re-eksportowane
@@ -50,10 +51,21 @@ z `const.py`, skąd importuje je `enea`.
 i `months: frozenset[int] | None` (1–12; None=każdy miesiąc). Oba filtry działają tylko, gdy
 `get_zone_at_hour` dostanie `day`.
 `Zone` enum: `DAY`, `NIGHT`, `PEAK`, `OFF_PEAK`, `RECOMMENDED_USE` (zalecany pobór),
-`REMAINING` (pozostałe godziny doby), `RECOMMENDED_LIMIT` (zalecane ograniczenie).
+`REMAINING` (pozostałe godziny doby), `RECOMMENDED_LIMIT` (zalecane ograniczenie),
+`CAPACITY_HOURS` (godziny opłaty mocowej, C11).
+`get_zone_change_hours` zbiera początki **i końce** wpisów harmonogramu — w C11 strefa opłaty mocowej
+kończy się o 22, a żaden wpis się tam nie zaczyna.
 
-`MonthlyFees.trade` — opłata handlowa sprzedawcy; w tabeli zawsze 0.0 (taryfa URE jej nie zna),
-ustawia ją dopiero `with_price_changes`.
+`MonthlyFees.trade` — opłata handlowa sprzedawcy; dla grup G w tabeli 0.0 (taryfa URE jej nie zna,
+ustawia ją dopiero `with_price_changes`), dla C11 w tabeli 35,00 z taryfy Enea S.A.
+`MonthlyFees.network_fixed_per_kw` — składnik stały grup C w zł/kW/mies.; `with_contract_power`
+(wołane w `build_tariff`) wpisuje iloczyn z mocą umowną do obu pól `network_fixed_*`, więc
+`get_network_fixed(phases)` działa w `enea` bez zmian.
+
+Flagi `TariffGroup`: `contract_energy` (patrz niżej), `contract_power` (wpis trzyma moc umowną
+`contract_power` w kW zamiast faz i zużycia; runtime podstawia za nie `CONTRACT_POWER_PHASES`/
+`CONTRACT_POWER_ANNUAL_KWH`, które niczego nie wyceniają), `uniform_energy` (jedna cena energii
+we wszystkich strefach — formularz umowy ma jedno pole `energy_all_day`, zapis i tak per strefa).
 
 ## Ceny z umowy
 
@@ -105,6 +117,12 @@ w komentarzu obok wpisu. Szczegóły mechanizmu i progi dokładności — w kome
 
 **G13active** – trzy strefy, harmonogram inny w każdym miesiącu (pkt 2.2.11, tabela w `tariffs.py`).
 Uwaga: październik ma pozostałe godziny 23–07, nie 23–06.
+
+**C11** – energia jedna całą dobę; strefy rozdzielają tylko opłatę mocową od kWh
+(0,2194 zł/kWh w 2026, Informacja Prezesa URE nr 58/2025):
+- **Godziny opłaty mocowej** (Zone.CAPACITY_HOURS): Pon–Pt 07:00–22:00, bez dni ustawowo wolnych
+  (Informacja nr 57/2025; na 2027 te same godziny, stawki kwartalne — nr 50/2026 i 51/2026)
+- **Pozostałe godziny** (Zone.REMAINING): reszta doby, weekendy i święta
 
 G12sezON i G13active nie rozróżniają dni roboczych — święta nie mają znaczenia.
 G11pewna i G12as **celowo nieobsługiwane**: ich stawka sieciowa zależy od zużycia w okresie
@@ -223,6 +241,14 @@ DRE.WRE.4211.52.11.2025.TG z 17.12.2025), strefy pkt 2.2.10–2.2.11, stawki pkt
 (stawki zmienne w `tariffs.py`, opłata stała 9,59/14,56 jak G12). Taryfa sprzedaży
 Enea S.A. (DRE.WRE.4211.51.8.2025.TG) obejmuje wyłącznie G11/G12/G12w/G11p/G12p.
 
+**2026, C11** — sprzedaż: „Taryfa dla energii elektrycznej dla Klientów z grup taryfowych A, B, C, R”
+Enea S.A. od 1.02.2026 (uchwała Zarządu nr 367/2025 — nie zatwierdzana przez URE), pkt 5.1: 0,8930 zł/kWh
+z akcyzą, obsługa handlowa 35,00 zł/mies.; wersja na styczeń 2026 nieznana, stąd początek tabeli 1.02.
+Dystrybucja: **pełna** taryfa Enea Operator (załącznik do decyzji DRE.WRE.4211.52.11.2025.TG — skan bez
+warstwy tekstu, wyciąg dla domu nie ma stawek C): pkt 7.1 stały 7,41 zł/kW/mies., zmienny 0,2304 zł/kWh;
+pkt 7.3 abonament jak G. Nie modelujemy: energii biernej, przekroczenia mocy umownej, współczynnika A_K
+dla mocy umownej > 16 kW.
+
 Decyzje Prezesa URE dla taryf sprzedaży Enea S.A. (PDF) — `docs/decyzje-ure/`, indeks w `README.md`
 tego katalogu.
 
@@ -264,6 +290,7 @@ brutto per grupa/strefa; przeliczenie na `energy` w tabeli to `brutto/1.23 - 0.0
 | G12w | 2 (szczyt/poza szczytem) | Tygodniowy harmonogram; dni ustawowo wolne obsługiwane (pakiet `holidays`) |
 | G12sezON | 2 (zalecany pobór/pozostałe) | Od 2026; harmonogram sezonowy; cena energii tylko z umowy |
 | G13active | 3 (zalecany pobór/pozostałe/zalecane ograniczenie) | Od 2026; harmonogram co miesiąc; cena energii tylko z umowy |
+| C11 | 2 (godziny opłaty mocowej/pozostałe) | Od 1.02.2026; taryfa Enea S.A. (nie URE) albo umowa; moc umowna zamiast faz i zużycia |
 
 ## Wydawanie nowej wersji
 

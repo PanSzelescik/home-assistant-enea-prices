@@ -36,11 +36,15 @@ Integracja konfigurowana jest w trzech krokach:
 - Roczne zużycie energii (przedział dla opłaty mocowej)
 - Okres rozliczeniowy (dla opłaty abonamentowej)
 
+Dla **C11** zamiast typu instalacji i zużycia podajesz **moc umowną** (kW, z umowy) — składnik stały
+opłaty sieciowej to 7,41 zł za każdy kW miesięcznie, a opłata mocowa jest liczona od kWh, nie ryczałtem.
+
 **Krok 3 – Ceny energii**
-- **Ceny z taryfy URE** — taryfa Enea S.A. zatwierdzana przez Prezesa URE (G11, G12, G12w)
+- **Ceny z taryfy Enea** — taryfa Enea S.A.: dla G11, G12, G12w zatwierdzana przez Prezesa URE,
+  dla C11 ustalana przez samą Eneę (z opłatą handlową 35 zł/mies.)
 - **Ceny z umowy** — jeśli masz ofertę rynkową (np. EneoPewność, EKO Oferta) albo na fakturze widzisz
-  inne ceny lub opłatę handlową. Dla G12sezON i G13active to jedyna opcja — URE nie zatwierdza dla nich
-  ceny energii, podają ją tylko oferty.
+  inne ceny lub inną opłatę handlową. Dla G12sezON i G13active to jedyna opcja — URE nie zatwierdza dla nich
+  ceny energii, podają ją tylko oferty. W C11 cena energii jest jedna na całą dobę, więc wpisujesz ją raz.
 
 Wszystko można później zmienić przez **Skonfiguruj ponownie**.
 
@@ -59,7 +63,7 @@ Cena z faktury **zawiera już akcyzę** (0,005 zł/kWh) — integracja sama ją 
 dystrybucję integracja zna z taryfy Enea Operator — są takie same u każdego klienta danej grupy,
 niezależnie od oferty i sprzedawcy.
 
-Przed datą „obowiązują od” zostają ceny z taryfy URE. Historia w panelu Energia od tej daty
+Przed datą „obowiązują od” zostają ceny z taryfy. Historia w panelu Energia od tej daty
 jest przeliczana przy najbliższym starcie Home Assistant.
 
 ### Gdy ceny się zmienią
@@ -68,7 +72,8 @@ Ceny oferty są stałe tylko przez jej okres (np. 36 miesięcy). Potem sprzedawc
 ofertę z nowym cennikiem albo wracasz na taryfę. Wtedy w **Skonfiguruj ponownie** wybierz:
 
 - **Nowe ceny z umowy od…** — wpisz nowe ceny z faktury i dzień, od którego obowiązują,
-- **Powrót do taryfy URE od…** — od podanego dnia znów ceny z taryfy, bez opłaty handlowej.
+- **Powrót do taryfy Enea od…** — od podanego dnia znów ceny z taryfy, z jej opłatą handlową
+  (grupy G jej nie mają, C11 — 35 zł/mies.).
 
 Zmiana jest **dopisywana** do historii: wcześniejsze miesiące zachowują ceny, które wtedy obowiązywały.
 Literówkę poprawisz, wpisując ceny ponownie z tą samą datą co ostatnia zmiana.
@@ -171,7 +176,27 @@ Integracja [**Enea Licznik**](https://github.com/PanSzelescik/home-assistant-ene
 | G12w | Dwustrefowa weekendowa (szczyt/poza szczytem) | ✅ Dostępna |
 | G12sezON | Dwustrefowa sezonowa (zalecany pobór/pozostałe godziny), od 2026 | ✅ Dostępna — cena energii z umowy |
 | G13active | Trójstrefowa, harmonogram co miesiąc (zalecany pobór/pozostałe/zalecane ograniczenie), od 2026 | ✅ Dostępna — cena energii z umowy |
+| C11 | Całodobowa dla firm (nN, do 40 kW), od 1.02.2026 | ✅ Dostępna — taryfa Enea albo ceny z umowy |
 | G11pewna, G12as | Stawka dystrybucyjna zależna od zużycia w okresie | ❌ Nieobsługiwana |
+
+### C11 – opłata mocowa od kWh
+
+Odbiorca inny niż gospodarstwo domowe płaci opłatę mocową od każdej kWh pobranej w **dni robocze
+7:00–22:00** (poniedziałek–piątek bez dni ustawowo wolnych) — **0,2194 zł/kWh netto** w 2026 r.
+Dlatego C11 ma dwie strefy, choć energia kosztuje tyle samo całą dobę:
+
+| Strefa | Godziny | Cena całkowita netto (taryfa, 2026) |
+|--------|---------|------------------------------------:|
+| Godziny opłaty mocowej | dni robocze 7:00–22:00 | 1,3813 zł/kWh |
+| Pozostałe godziny | reszta doby, weekendy i święta | 1,1619 zł/kWh |
+
+W panelu Energia wybierz cenę jak w G12 — sensor „Cena całkowita” każdej strefy.
+Opłata stała sieciowa: 7,41 zł × moc umowna (kW) miesięcznie; abonament jak w grupach G.
+Nie są liczone: opłata za energię bierną i za przekroczenie mocy umownej (wymagają danych, których
+licznik nie udostępnia), ani współczynnik A<sub>K</sub> dla mocy umownej powyżej 16 kW.
+
+Źródła: taryfa Enea S.A. dla grup A, B, C, R od 1.02.2026 (pkt 5.1); taryfa Enea Operator na 2026 r.
+(pkt 7.1, 7.3); Informacje Prezesa URE nr 57/2025 i 58/2025.
 
 ### Strefy G12sezON
 

@@ -27,6 +27,7 @@ from .const import (
     CHANGE_TRADE_FEE,
     CHANGE_VALID_FROM,
     CONF_BILLING_MONTHS,
+    CONF_CONTRACT_POWER,
     CONF_PHASES,
     CONF_PRICE_CHANGES,
     CONF_TARIFF,
@@ -41,8 +42,13 @@ from .tariffs import AKCYZA, TARIFFS, TariffGroup, Zone
 
 # Pole formularza z ceną energii danej strefy, np. "energy_day".
 _ENERGY_FIELD = "energy_{}"
+# Jedno pole ceny dla grupy z jedną ceną energii we wszystkich strefach (C11).
+_ENERGY_ALL_DAY = "energy_all_day"
 # Shown for a fact the meter does not settle.
 _UNKNOWN = "—"
+# The tariff's prices in the price history: Enea S.A.'s tariff – approved by URE
+# for the G groups, set by Enea itself for the C groups.
+_TARIFF_LABEL = "taryfa"
 
 
 class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -111,6 +117,17 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_prices()
 
         hint = meter_hint(self.hass, self._tariff_name)
+        if TARIFFS[self._tariff_name].contract_power:
+            # Groups C: the contracted power replaces phases and yearly consumption.
+            billing = hint.billing_months if hint is not None else None
+            return self.async_show_form(
+                step_id="details_power",
+                data_schema=_power_schema(
+                    default_billing_months=(
+                        str(billing) if billing is not None else DEFAULT_BILLING_MONTHS
+                    ),
+                ),
+            )
         if hint is None:
             return self.async_show_form(
                 step_id="details",
@@ -131,6 +148,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
     # The pre-filled form only differs in its description, which needs a step id
     # of its own; what it sends back is handled the same.
     async_step_details_from_meter = async_step_details
+    async_step_details_power = async_step_details
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -149,6 +167,14 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
             self._changes = [dict(c) for c in entry.data.get(CONF_PRICE_CHANGES, [])]
             return await self.async_step_change_prices()
 
+        if TARIFFS[entry.data[CONF_TARIFF]].contract_power:
+            return self.async_show_form(
+                step_id="reconfigure_power",
+                data_schema=_power_schema(
+                    default_power=entry.data.get(CONF_CONTRACT_POWER),
+                    default_billing_months=str(entry.data[CONF_BILLING_MONTHS]),
+                ),
+            )
         schema = _details_schema(
             default_phases=str(entry.data[CONF_PHASES]),
             # A measured consumption (set from a repair of the enea integration)
@@ -166,6 +192,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async_step_reconfigure_from_meter = async_step_reconfigure
+    async_step_reconfigure_power = async_step_reconfigure
 
     # A menu is a step like any other: Home Assistant drops a flow whose result
     # names a step id without an async_step_ method, so both menus need one.
@@ -201,7 +228,11 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_menu(
             step_id="change_prices",
             menu_options=options,
-            description_placeholders={"history": _format_history(self._changes)},
+            description_placeholders={
+                "history": _format_history(
+                    self._changes, TARIFFS[self._tariff_name].uniform_energy
+                )
+            },
         )
 
     async def async_step_keep_prices(
@@ -256,7 +287,7 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Energy prices and trade fee copied off the customer's invoice."""
         group = TARIFFS[self._tariff_name]
-        zones = _contract_zones(group)
+        fields = _price_fields(group)
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -266,8 +297,11 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._add_change(
                     {
                         CHANGE_VALID_FROM: valid_from.isoformat(),
+                        # Stored per zone even when one field prices them all:
+                        # the model and the enea integration read it per zone.
                         CHANGE_ENERGY: {
-                            str(zone): float(user_input[_ENERGY_FIELD.format(zone)])
+                            str(zone): float(user_input[key])
+                            for key, zones in fields.items()
                             for zone in zones
                         },
                         CHANGE_TRADE_FEE: float(user_input[CHANGE_TRADE_FEE]),
@@ -275,15 +309,17 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
                 return self._async_finish()
 
-        current = user_input or self._contract_defaults(group, zones)
+        current = user_input or self._contract_defaults(group, fields)
         return self.async_show_form(
             step_id="contract",
-            data_schema=_contract_schema(zones, current),
+            data_schema=_contract_schema(list(fields), current),
             errors=errors,
             description_placeholders=self._placeholders(),
         )
 
-    def _contract_defaults(self, group: TariffGroup, zones: list[Zone]) -> dict[str, Any]:
+    def _contract_defaults(
+        self, group: TariffGroup, fields: dict[str, list[Zone]]
+    ) -> dict[str, Any]:
         """Pre-fill the contract form.
 
         Prices: those of the latest contract, since a renewed offer often
@@ -299,14 +335,15 @@ class EneaPricesConfigFlow(ConfigFlow, domain=DOMAIN):
         latest = next((c for c in reversed(self._changes) if c.get(CHANGE_ENERGY)), None)
         if latest is not None:
             defaults[CHANGE_TRADE_FEE] = latest.get(CHANGE_TRADE_FEE, 0.0)
-            for zone in zones:
-                defaults[_ENERGY_FIELD.format(zone)] = latest[CHANGE_ENERGY].get(str(zone))
+            for key, zones in fields.items():
+                defaults[key] = latest[CHANGE_ENERGY].get(str(zones[0]))
         elif group.contract_energy:
             defaults[CHANGE_VALID_FROM] = group.earliest_date.isoformat()
         else:
             period = group.get_current_period() or group.periods[-1]
-            for zone in zones:
-                defaults[_ENERGY_FIELD.format(zone)] = round(period.zones[zone].energy + AKCYZA, 4)
+            defaults[CHANGE_TRADE_FEE] = period.monthly.trade
+            for key, zones in fields.items():
+                defaults[key] = round(period.zones[zones[0]].energy + AKCYZA, 4)
         return defaults
 
     def _validate_start(self, valid_from: date) -> dict[str, str]:
@@ -366,29 +403,69 @@ def _hint_placeholders(hint: MeterHint) -> dict[str, str]:
     }
 
 
-def _format_history(changes: list[dict[str, Any]]) -> str:
-    """One line per price change, oldest first, for the reconfigure menu."""
+def _format_history(changes: list[dict[str, Any]], uniform_energy: bool = False) -> str:
+    """One line per price change, oldest first, for the reconfigure menu.
+
+    A group with one energy price for all zones shows it once.
+    """
     if not changes:
-        return "URE"
+        return _TARIFF_LABEL
     lines = []
     for change in changes:
         energy = change.get(CHANGE_ENERGY)
         if energy is None:
-            lines.append(f"- {change[CHANGE_VALID_FROM]}: URE")
+            lines.append(f"- {change[CHANGE_VALID_FROM]}: {_TARIFF_LABEL}")
             continue
-        prices = " / ".join(f"{price:.4f}" for price in energy.values())
+        values = list(energy.values())[:1] if uniform_energy else energy.values()
+        prices = " / ".join(f"{price:.4f}" for price in values)
         fee = change.get(CHANGE_TRADE_FEE, 0.0)
         lines.append(f"- {change[CHANGE_VALID_FROM]}: {prices} zł/kWh, {fee:.2f} zł/mies.")
     return "\n".join(lines)
 
 
-def _details_from_input(user_input: dict[str, Any]) -> dict[str, int]:
+def _details_from_input(user_input: dict[str, Any]) -> dict[str, Any]:
     """Convert the selector strings of the details form into entry data."""
+    if CONF_CONTRACT_POWER in user_input:
+        return {
+            CONF_CONTRACT_POWER: float(user_input[CONF_CONTRACT_POWER]),
+            CONF_BILLING_MONTHS: int(user_input[CONF_BILLING_MONTHS]),
+        }
     return {
         CONF_PHASES: int(user_input[CONF_PHASES]),
         CONF_ANNUAL_KWH: int(user_input[CONF_ANNUAL_KWH]),
         CONF_BILLING_MONTHS: int(user_input[CONF_BILLING_MONTHS]),
     }
+
+
+def _power_schema(
+    default_power: float | None = None,
+    default_billing_months: str = DEFAULT_BILLING_MONTHS,
+) -> vol.Schema:
+    """Build the details schema of a contract_power group: contracted power and billing period."""
+    power = (
+        vol.Required(CONF_CONTRACT_POWER)
+        if default_power is None
+        else vol.Required(CONF_CONTRACT_POWER, default=default_power)
+    )
+    return vol.Schema(
+        {
+            power: NumberSelector(
+                NumberSelectorConfig(
+                    min=0.1,
+                    max=40,
+                    step=0.1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="kW",
+                )
+            ),
+            vol.Required(CONF_BILLING_MONTHS, default=default_billing_months): SelectSelector(
+                SelectSelectorConfig(
+                    options=BILLING_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
+    )
 
 
 def _details_schema(
@@ -427,14 +504,26 @@ def _contract_zones(group: TariffGroup) -> list[Zone]:
     return list(period.zones)
 
 
+def _price_fields(group: TariffGroup) -> dict[str, list[Zone]]:
+    """Fields of the contract form, each with the zones its price applies to.
+
+    One field per zone, or a single one when the group has one energy price
+    for all of them (C11, whose zones only split the capacity fee).
+    """
+    zones = _contract_zones(group)
+    if group.uniform_energy:
+        return {_ENERGY_ALL_DAY: zones}
+    return {_ENERGY_FIELD.format(zone): [zone] for zone in zones}
+
+
 def _required(key: str, current: dict[str, Any]) -> vol.Required:
     """A required field, pre-filled when there is something to pre-fill it with."""
     value = current.get(key)
     return vol.Required(key) if value is None else vol.Required(key, default=value)
 
 
-def _contract_schema(zones: list[Zone], current: dict[str, Any]) -> vol.Schema:
-    """Build the contract form: one energy price per zone, the trade fee and the start date."""
+def _contract_schema(price_keys: list[str], current: dict[str, Any]) -> vol.Schema:
+    """Build the contract form: the energy price fields, the trade fee and the start date."""
     energy = NumberSelector(
         NumberSelectorConfig(
             min=0,
@@ -444,9 +533,7 @@ def _contract_schema(zones: list[Zone], current: dict[str, Any]) -> vol.Schema:
             unit_of_measurement="zł/kWh",
         )
     )
-    fields: dict[Any, Any] = {
-        _required(_ENERGY_FIELD.format(zone), current): energy for zone in zones
-    }
+    fields: dict[Any, Any] = {_required(key, current): energy for key in price_keys}
     fields[_required(CHANGE_TRADE_FEE, current)] = NumberSelector(
         NumberSelectorConfig(
             min=0,
