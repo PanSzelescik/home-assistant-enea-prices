@@ -1,5 +1,5 @@
 name: Bug Report (EN)
-description: Report a problem with the Enea Licznik integration
+description: Report a problem with the Enea Ceny integration
 labels: ["bug", "lang: en"]
 body:
   - type: markdown
@@ -18,8 +18,8 @@ body:
   - type: input
     id: integration_version
     attributes:
-      label: Enea Licznik Version
-      placeholder: "e.g. 0.0.1"
+      label: Enea Ceny Version
+      placeholder: "e.g. 0.6.0"
     validations:
       required: true
 
@@ -27,7 +27,17 @@ body:
     id: tariff
     attributes:
       label: Tariff Group
-      placeholder: "e.g. G11, G12, G13"
+      placeholder: "e.g. G11, G12, G12w, C11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: uses_other
+    attributes:
+      label: Do you use the Enea Licznik integration?
+      options:
+        - Yes
+        - No
     validations:
       required: true
 
@@ -44,13 +54,5 @@ body:
     attributes:
       label: Home Assistant Logs
       description: |
-        Paste logs from the `enea` domain (Settings → System → Logs, filter by "enea").
+        Paste logs from the `enea_prices` domain (Settings → System → Logs, filter by "enea_prices").
       render: text
-
-  - type: textarea
-    id: diagnostics
-    attributes:
-      label: Diagnostics Report
-      description: |
-        Optionally attach the diagnostics report (Settings → Devices & Services → Enea → menu ⋮ → Download Diagnostics).
-      render: json
