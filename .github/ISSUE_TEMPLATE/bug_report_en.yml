@@ -36,8 +36,8 @@ body:
     attributes:
       label: Do you use the Enea Licznik integration?
       options:
-        - Yes
-        - No
+        - "Yes"
+        - "No"
     validations:
       required: true
 
