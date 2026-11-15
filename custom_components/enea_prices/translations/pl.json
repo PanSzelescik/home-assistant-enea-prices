@@ -26,6 +26,17 @@
           "billing_months": "Okres rozliczeniowy"
         }
       },
+      "details_power": {
+        "title": "Szczegóły instalacji",
+        "description": "Dane potrzebne do obliczenia opłat miesięcznych. Moc umowną znajdziesz w umowie lub na fakturze za dystrybucję – składnik stały stawki sieciowej to 7,41 zł za każdy kW miesięcznie.",
+        "data": {
+          "contract_power": "Moc umowna",
+          "billing_months": "Okres rozliczeniowy"
+        },
+        "data_description": {
+          "contract_power": "Moc umowna z umowy, w kW (C11: do 40 kW)."
+        }
+      },
       "reconfigure": {
         "title": "Zmień szczegóły instalacji",
         "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych. W następnym kroku możesz zmienić ceny energii.",
@@ -35,27 +46,38 @@
           "billing_months": "Okres rozliczeniowy"
         }
       },
+      "reconfigure_power": {
+        "title": "Zmień szczegóły instalacji",
+        "description": "Zaktualizuj dane potrzebne do obliczenia opłat miesięcznych. W następnym kroku możesz zmienić ceny energii.",
+        "data": {
+          "contract_power": "Moc umowna",
+          "billing_months": "Okres rozliczeniowy"
+        },
+        "data_description": {
+          "contract_power": "Moc umowna z umowy, w kW (C11: do 40 kW)."
+        }
+      },
       "prices": {
         "title": "Ceny energii",
-        "description": "Skąd brać cenę energii? Jeśli masz umowę z ofertą rynkową (np. EneoPewność, EKO Oferta) albo na fakturze widzisz inne ceny niż w taryfie URE lub opłatę handlową, wybierz ceny z umowy.",
+        "description": "Skąd brać cenę energii? Jeśli masz umowę z ofertą rynkową (np. EneoPewność, EKO Oferta) albo na fakturze widzisz inne ceny niż w taryfie Enea lub inną opłatę handlową, wybierz ceny z umowy.",
         "menu_options": {
-          "tariff_prices": "Ceny z taryfy URE",
+          "tariff_prices": "Ceny z taryfy Enea",
           "contract": "Ceny z umowy (przepiszę z faktury)"
         }
       },
       "change_prices": {
         "title": "Ceny energii",
-        "description": "Twoja historia cen (każda zmiana obowiązuje do następnej, przed pierwszą – taryfa URE):\n{history}\n\nNowe ceny dopisz od dnia, od którego je płacisz – wcześniejsze miesiące zachowają dotychczasowe ceny. Aby poprawić literówkę, wpisz ceny ponownie z tą samą datą co ostatnia zmiana.",
+        "description": "Twoja historia cen (każda zmiana obowiązuje do następnej, przed pierwszą – taryfa Enea):\n{history}\n\nNowe ceny dopisz od dnia, od którego je płacisz – wcześniejsze miesiące zachowają dotychczasowe ceny. Aby poprawić literówkę, wpisz ceny ponownie z tą samą datą co ostatnia zmiana.",
         "menu_options": {
           "keep_prices": "Bez zmian w cenach",
           "contract": "Nowe ceny z umowy od…",
-          "tariff_prices": "Powrót do taryfy URE od…",
-          "clear_prices": "Usuń wszystkie ceny z umowy (wszędzie taryfa URE)"
+          "tariff_prices": "Powrót do taryfy Enea od…",
+          "clear_prices": "Usuń wszystkie ceny z umowy (wszędzie taryfa Enea)"
         }
       },
       "tariff_from": {
-        "title": "Powrót do taryfy URE",
-        "description": "Od tego dnia energia znów będzie liczona po cenach z taryfy URE, bez opłaty handlowej.",
+        "title": "Powrót do taryfy Enea",
+        "description": "Od tego dnia energia znów będzie liczona po cenach z taryfy Enea, z opłatą handlową z taryfy (grupy G jej nie mają).",
         "data": {
           "valid_from": "Taryfa obowiązuje od"
         }
@@ -64,6 +86,7 @@
         "title": "Ceny z umowy – {tariff}",
         "description": "Przepisz ceny z faktury, z sekcji **Rozliczenie – sprzedaż energii**, kolumna **Cena jedn. netto**. Ta cena zawiera już akcyzę (0,005 zł/kWh) – integracja sama ją odejmie, dlatego sensory „Cena energii (netto)” pokażą o 0,005 mniej. Jeśli w okresie rozliczeniowym zmieniła się cena i faktura ma dwie linie z datami, przepisz nowszą. Dystrybucję i strefy czasowe integracja zna z taryfy Enea Operator.",
         "data": {
+          "energy_all_day": "Cena energii (całodobowa)",
           "energy_day": "Strefa dzienna",
           "energy_night": "Strefa nocna",
           "energy_peak": "Strefa szczytowa",
@@ -114,7 +137,8 @@
           "off_peak": "Poza szczytem",
           "recommended_use": "Zalecany pobór",
           "remaining": "Pozostałe godziny",
-          "recommended_limit": "Zalecane ograniczenie"
+          "recommended_limit": "Zalecane ograniczenie",
+          "capacity_hours": "Godziny opłaty mocowej"
         }
       },
       "current_price_energy":          { "name": "Aktualna cena energii (netto)" },
@@ -129,6 +153,7 @@
       "recommended_use_price_energy":  { "name": "Cena energii – zalecany pobór (netto)" },
       "remaining_price_energy":        { "name": "Cena energii – pozostałe godziny (netto)" },
       "recommended_limit_price_energy": { "name": "Cena energii – zalecane ograniczenie (netto)" },
+      "capacity_hours_price_energy": { "name": "Cena energii – godziny opłaty mocowej (netto)" },
       "day_price_total":               { "name": "Cena całkowita – dzień (netto)" },
       "day_price_total_brutto":        { "name": "Cena całkowita – dzień (brutto)" },
       "night_price_total":             { "name": "Cena całkowita – noc (netto)" },
@@ -142,7 +167,9 @@
       "remaining_price_total":         { "name": "Cena całkowita – pozostałe godziny (netto)" },
       "remaining_price_total_brutto":  { "name": "Cena całkowita – pozostałe godziny (brutto)" },
       "recommended_limit_price_total": { "name": "Cena całkowita – zalecane ograniczenie (netto)" },
+      "capacity_hours_price_total": { "name": "Cena całkowita – godziny opłaty mocowej (netto)" },
       "recommended_limit_price_total_brutto": { "name": "Cena całkowita – zalecane ograniczenie (brutto)" },
+      "capacity_hours_price_total_brutto": { "name": "Cena całkowita – godziny opłaty mocowej (brutto)" },
       "day_distribution":              { "name": "Opłata dystrybucyjna – dzień (netto)" },
       "night_distribution":            { "name": "Opłata dystrybucyjna – noc (netto)" },
       "peak_distribution":             { "name": "Opłata dystrybucyjna – szczyt (netto)" },
@@ -150,6 +177,7 @@
       "recommended_use_distribution":  { "name": "Opłata dystrybucyjna – zalecany pobór (netto)" },
       "remaining_distribution":        { "name": "Opłata dystrybucyjna – pozostałe godziny (netto)" },
       "recommended_limit_distribution": { "name": "Opłata dystrybucyjna – zalecane ograniczenie (netto)" },
+      "capacity_hours_distribution": { "name": "Opłata dystrybucyjna – godziny opłaty mocowej (netto)" },
       "day_network_fee":               { "name": "Składnik sieciowy – dzień" },
       "night_network_fee":             { "name": "Składnik sieciowy – noc" },
       "peak_network_fee":              { "name": "Składnik sieciowy – szczyt" },
@@ -157,9 +185,11 @@
       "recommended_use_network_fee":   { "name": "Składnik sieciowy – zalecany pobór" },
       "remaining_network_fee":         { "name": "Składnik sieciowy – pozostałe godziny" },
       "recommended_limit_network_fee": { "name": "Składnik sieciowy – zalecane ograniczenie" },
+      "capacity_hours_network_fee": { "name": "Składnik sieciowy – godziny opłaty mocowej" },
       "quality_fee":                   { "name": "Stawka jakościowa" },
       "oze_fee":                       { "name": "Opłata OZE" },
       "cogeneration_fee":              { "name": "Opłata kogeneracyjna" },
+      "capacity_fee":                 { "name": "Opłata mocowa (od kWh)" },
       "monthly_network_fixed":         { "name": "Opłata stała sieciowa" },
       "monthly_subscription":          { "name": "Opłata abonamentowa" },
       "monthly_capacity":              { "name": "Opłata mocowa" },

@@ -16,8 +16,16 @@ from custom_components.enea_prices.tariffs import TARIFFS, TariffGroup, TariffPe
 
 ONE_DAY = datetime.timedelta(days=1)
 
-TARIFF_PRICED = sorted(name for name, group in TARIFFS.items() if not group.contract_energy)
-"""Groups whose energy price comes from the URE-approved Enea S.A. tariff."""
+TARIFF_PRICED = sorted(
+    name
+    for name, group in TARIFFS.items()
+    if not group.contract_energy and not group.contract_power
+)
+"""Household groups whose energy price comes from the URE-approved Enea S.A. tariff.
+
+C11 has a tariff price too, but Enea's own tariff for the C groups, and its
+table starts on 1.02.2026: the 2024–2025 caps worked differently for businesses.
+"""
 
 
 def _days(start: datetime.date, end: datetime.date):

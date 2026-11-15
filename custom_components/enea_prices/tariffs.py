@@ -31,6 +31,8 @@ class Zone(StrEnum):
     """Pozostałe godziny doby (G12sezON, G13active)."""
     RECOMMENDED_LIMIT = "recommended_limit"
     """Strefa zalecanego ograniczenia (G13active)."""
+    CAPACITY_HOURS = "capacity_hours"
+    """Godziny, w których naliczana jest opłata mocowa od kWh (C11; reszta doby to REMAINING)."""
 
 
 @dataclass(frozen=True)
@@ -52,10 +54,15 @@ class ZonePricing:
     cogeneration: float
     """Opłata kogeneracyjna (Enea Operator), w zł/kWh."""
 
+    capacity: float = 0.0
+    """Opłata mocowa od kWh, w zł/kWh – tylko odbiorcy inni niż gospodarstwa domowe (grupy C),
+    i tylko w strefie wybranych godzin doby.  Gospodarstwa płacą ryczałt (MonthlyFees)."""
+
     @property
     def total_distribution(self) -> float:
-        """Suma wszystkich zmiennych opłat dystrybucyjnych netto."""
-        return self.variable_network + self.quality + self.oze + self.cogeneration
+        """Suma wszystkich zmiennych opłat dystrybucyjnych netto (z opłatą mocową od kWh)."""
+        # capacity na końcu: dla grup G to + 0.0, co nie zmienia wyniku ani o bit.
+        return self.variable_network + self.quality + self.oze + self.cogeneration + self.capacity
 
     @property
     def total(self) -> float:
@@ -96,9 +103,14 @@ class MonthlyFees:
     transition_500_1200: float = 0.0
     transition_gt1200: float = 0.0
 
-    # Opłata handlowa sprzedawcy – tylko w ofertach rynkowych, nigdy w taryfie URE.
-    # Pochodzi z cen z umowy (with_price_changes), w tabeli zawsze 0.0.
+    # Opłata handlowa sprzedawcy.  Taryfa URE dla grup G jej nie zna (0.0, ustawia ją
+    # dopiero with_price_changes); taryfa Enea S.A. dla grup C ma własną (35 zł/mies.).
     trade: float = 0.0
+
+    # Składnik stały stawki sieciowej grup C, zł/kW/mies.: mnożony przez moc umowną
+    # (taryfa Enea Operator pkt 3.1.5).  with_contract_power wpisuje iloczyn do
+    # network_fixed_*, więc get_network_fixed działa tak samo jak w grupach G.
+    network_fixed_per_kw: float = 0.0
 
     def get_network_fixed(self, phases: int) -> float:
         """Składnik stały dla instalacji 1- lub 3-fazowej."""
@@ -203,8 +215,15 @@ class TariffPeriod:
         return Zone.DAY
 
     def get_zone_change_hours(self) -> list[int]:
-        """Return sorted list of hours when zone transitions happen."""
-        return sorted({entry.start_hour for entry in self.schedule if entry.start_hour > 0})
+        """Return sorted list of hours when zone transitions happen.
+
+        End hours count too: C11's capacity hours end at 22 in a schedule whose
+        other entry covers the whole day from 0, so no entry starts there.
+        """
+        bounds = {entry.start_hour for entry in self.schedule} | {
+            entry.end_hour for entry in self.schedule
+        }
+        return sorted(hour for hour in bounds if 0 < hour < 24)
 
 
 @dataclass(frozen=True)
@@ -220,6 +239,18 @@ class TariffGroup:
     Only the distribution side of such a group is regulated; the energy price
     comes from the customer's contract, so every `energy` in its table is a
     0.0 placeholder and the group is usable only through with_price_changes.
+    """
+    contract_power: bool = False
+    """True when the fixed network fee is charged per kW of contracted power (groups C).
+
+    Such an entry stores its contracted power instead of phases and yearly
+    consumption: the capacity fee is charged per kWh, not as a monthly flat rate.
+    """
+    uniform_energy: bool = False
+    """True when every zone has the same energy price (C11).
+
+    Its zones only split the day for the capacity fee, so a contract has one
+    energy price, entered once and applied to every zone.
     """
 
     def get_period_for_date(self, d: date) -> TariffPeriod | None:
@@ -326,6 +357,29 @@ def with_price_changes(group: TariffGroup, changes: list[PriceChange]) -> Tariff
                 )
             )
     return replace(group, periods=periods, contract_energy=False)
+
+
+def with_contract_power(group: TariffGroup, contract_power_kw: float) -> TariffGroup:
+    """Return a copy of a contract_power group with its fixed network fee for this power.
+
+    The fee is the per-kW rate times the contracted power; it is written into
+    both network_fixed fields, so MonthlyFees.get_network_fixed gives it for
+    any phases – the enea integration reads it that way, as for the G groups.
+    """
+    return replace(
+        group,
+        periods=[
+            replace(
+                period,
+                monthly=replace(
+                    period.monthly,
+                    network_fixed_1phase=period.monthly.network_fixed_per_kw * contract_power_kw,
+                    network_fixed_3phase=period.monthly.network_fixed_per_kw * contract_power_kw,
+                ),
+            )
+            for period in group.periods
+        ],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1179,10 +1233,88 @@ TARIFF_G13ACTIVE = _contract_group_2026(
 )
 
 
+# ---------------------------------------------------------------------------
+# C11 – grupa całodobowa dla firm (nN, moc umowna do 40 kW), od 1.02.2026
+#
+# Energia jest jedna przez całą dobę; dwie strefy rozdzielają tylko opłatę mocową,
+# którą odbiorca inny niż gospodarstwo domowe płaci od kWh pobranej w wybranych
+# godzinach doby (art. 89a ust. 1 pkt 2 ustawy o rynku mocy), a nie ryczałtem.
+#
+# Źródła:
+#   Sprzedaż:    „Taryfa dla energii elektrycznej dla Klientów z grup taryfowych
+#                A, B, C, R” Enea S.A. od 1.02.2026 (uchwała Zarządu nr 367/2025
+#                z 22.12.2025 – NIE zatwierdzana przez URE), pkt 5.1:
+#                C11 0,8930 zł/kWh z akcyzą, obsługa handlowa 35,00 zł/mies.
+#                Wersja na styczeń 2026 nieznana, stąd początek tabeli 1.02.2026.
+#   Dystrybucja: pełna taryfa Enea Operator 2026 (załącznik do decyzji
+#                DRE.WRE.4211.52.11.2025.TG, skan): pkt 7.1 – stały 7,41 zł/kW/mies.,
+#                zmienny 0,2304 zł/kWh; pkt 7.3 – abonament jak G; jakościowa od
+#                1.02.2026 0,0332; OZE i kogeneracyjna jak G.
+#   Opłata mocowa: Informacja Prezesa URE nr 58/2025 – 0,2194 zł/kWh w 2026;
+#                nr 57/2025 – godziny 7:00–22:00 w dni robocze (Pn–Pt bez dni
+#                ustawowo wolnych).  AK = 1 dla nN do 16 kW; powyżej 16 kW
+#                współczynnik zależy od profilu poboru – tego tabela nie zna.
+#                2027 (nr 51/2026): stawki kwartalne 0,1925 / 0,2141 / 0,1984 / 0,1950.
+# ---------------------------------------------------------------------------
+
+_C11_SCHEDULE = [
+    ZoneScheduleEntry(Zone.CAPACITY_HOURS, 7, 22, weekdays=frozenset(range(5))),
+    ZoneScheduleEntry(Zone.REMAINING, 0, 24),
+]
+
+_C11_MONTHLY_2026 = MonthlyFees(
+    network_fixed_1phase=0.0,
+    network_fixed_3phase=0.0,
+    network_fixed_per_kw=7.41,
+    subscription_1m=3.84,
+    subscription_2m=1.92,
+    subscription_6m=0.64,
+    subscription_12m=0.32,
+    # Mocowa od kWh (ZonePricing.capacity), nie ryczałt.
+    capacity_lt500=0.0,
+    capacity_500_1200=0.0,
+    capacity_1200_2800=0.0,
+    capacity_gt2800=0.0,
+    trade=35.00,
+)
+
+
+def _c11_zone(capacity: float) -> ZonePricing:
+    """C11 price of one zone in 2026; the zones differ only by the capacity fee."""
+    return ZonePricing(
+        energy=0.8880,  # 0,8930 z akcyzą
+        variable_network=0.2304,
+        quality=0.0332,
+        oze=0.0073,
+        cogeneration=0.0030,
+        capacity=capacity,
+    )
+
+
+TARIFF_C11 = TariffGroup(
+    name="C11",
+    contract_power=True,
+    uniform_energy=True,
+    periods=[
+        TariffPeriod(
+            valid_from=date(2026, 2, 1),
+            valid_until=date(2026, 12, 31),
+            monthly=_C11_MONTHLY_2026,
+            zones={
+                Zone.CAPACITY_HOURS: _c11_zone(0.2194),
+                Zone.REMAINING: _c11_zone(0.0),
+            },
+            schedule=_C11_SCHEDULE,
+        ),
+    ],
+)
+
+
 TARIFFS: dict[str, TariffGroup] = {
     "G11": TARIFF_G11,
     "G12": TARIFF_G12,
     "G12w": TARIFF_G12W,
     "G12sezON": TARIFF_G12SEZON,
     "G13active": TARIFF_G13ACTIVE,
+    "C11": TARIFF_C11,
 }

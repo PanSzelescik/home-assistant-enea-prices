@@ -19,6 +19,8 @@ CONF_TARIFF = "tariff"
 CONF_PHASES = "phases"
 CONF_ANNUAL_KWH = "annual_kwh"
 CONF_BILLING_MONTHS = "billing_months"
+# Moc umowna w kW – tylko grupy z TariffGroup.contract_power (C11), zamiast faz i zużycia.
+CONF_CONTRACT_POWER = "contract_power"
 
 # Historia cen energii klienta: taryfa URE ↔ oferty rynkowe.  Lista posortowana po dacie;
 # każda zmiana obowiązuje do następnej, przed pierwszą – taryfa.  Brak klucza = sama taryfa.
@@ -34,6 +36,12 @@ CHANGE_TRADE_FEE = "trade_fee"
 DEFAULT_PHASES = "3"
 DEFAULT_ANNUAL_KWH = "2000"
 DEFAULT_BILLING_MONTHS = "1"
+# Entry of a contract_power group has no phases nor yearly consumption; the
+# runtime keeps these so whoever reads them (the enea integration) still gets ints.
+# Neither prices anything there: both network_fixed fields hold the same fee and
+# the capacity fee is per kWh, so its monthly brackets are all 0.0.
+CONTRACT_POWER_PHASES = 3
+CONTRACT_POWER_ANNUAL_KWH = 0
 
 # --- Units ---
 UNIT_PRICE = "PLN/kWh"
