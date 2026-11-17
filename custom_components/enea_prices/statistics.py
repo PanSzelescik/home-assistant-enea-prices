@@ -10,7 +10,7 @@ for cost calculations.
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import partial
 
 from homeassistant.components.recorder import get_instance
@@ -29,12 +29,20 @@ from .tariffs import TariffGroup
 
 _LOGGER = logging.getLogger(__name__)
 
+type VerifiedHours = dict[str, tuple[tuple[tuple[float, date], ...], datetime]]
+"""Per sensor: the prices its statistics were last checked against, and the hour
+up to which they were found right or written.  See _inject_sensor_statistics."""
 
-async def async_inject_price_statistics(hass: HomeAssistant, group: TariffGroup) -> None:
+
+async def async_inject_price_statistics(
+    hass: HomeAssistant, group: TariffGroup, verified: VerifiedHours | None = None
+) -> None:
     """Inject hourly mean statistics for all static price sensors of this tariff group.
 
     Covers every hour from the tariff period's valid_from up to yesterday.
     Hours already stored with the price the table gives them are skipped.
+    verified is what earlier runs have already checked — see
+    _inject_sensor_statistics.
     """
     registry = er.async_get(hass)
     today = dt_util.now().date()
@@ -60,13 +68,43 @@ async def async_inject_price_statistics(hass: HomeAssistant, group: TariffGroup)
                 )
 
     for entity_id, sensor_spans in spans.items():
-        await _inject_sensor_statistics(hass, entity_id, sensor_spans)
+        await _inject_sensor_statistics(hass, entity_id, sensor_spans, verified)
+
+
+def _hours_to_write(
+    windows: list[tuple[float, datetime, datetime]],
+    stored_mean: dict[int, float | None],
+    recorder_owns_after: float | None,
+    check_from: datetime | None,
+) -> list[StatisticData]:
+    """Return one entry per missing or mispriced hour before the recorder's newest.
+
+    Pure arithmetic over every hour of the windows — years of them on the first
+    run after a start — so it is called from an executor, not the event loop.
+    Hours before check_from were settled by an earlier run and are skipped.
+    """
+    stats_data: list[StatisticData] = []
+    for value, start_dt, end_dt in windows:
+        expected = round(value, 4)
+        current = start_dt.astimezone(dt_util.UTC)
+        if check_from is not None and current < check_from:
+            current = check_from
+        limit = end_dt.astimezone(dt_util.UTC)
+        while current < limit:
+            if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
+                break
+            mean = stored_mean.get(int(current.timestamp()))
+            if mean is None or round(mean, 4) != expected:
+                stats_data.append(StatisticData(start=current, mean=value))
+            current += timedelta(hours=1)
+    return stats_data
 
 
 async def _inject_sensor_statistics(
     hass: HomeAssistant,
     entity_id: str,
     spans: list[tuple[float, date, date]],
+    verified: VerifiedHours | None = None,
 ) -> None:
     """Inject hourly mean statistics for one price sensor, backfilling gaps.
 
@@ -97,6 +135,14 @@ async def _inject_sensor_statistics(
     Each span runs from local midnight on its first day to local midnight
     after its last, and the hours inside it are stepped through in UTC, so the
     days the clocks change get the 23 or 25 hours they really have.
+
+    The whole window is read and walked once per start of Home Assistant.
+    verified, kept in memory by the caller, remembers per sensor how far a
+    run got and at which prices; a later run with the same prices — the one
+    after the recorder's first hour, a reload of the entry — reads and walks
+    only the hours since.  It is not stored on disk on purpose: the writes are
+    only queued here, and a marker that outlived a write the recorder never
+    made would hide the hole for good.
     """
     windows = [
         (
@@ -110,11 +156,21 @@ async def _inject_sensor_statistics(
     if not windows:
         return
 
-    existing = await get_instance(hass).async_add_executor_job(
+    signature = tuple((round(value, 4), first) for value, first, _last in spans)
+    known = verified.get(entity_id) if verified is not None else None
+    check_from = known[1] if known is not None and known[0] == signature else None
+    read_from = windows[0][1]
+    if check_from is not None:
+        if check_from >= windows[-1][2]:
+            return  # every hour of the window was settled by an earlier run
+        read_from = max(read_from, check_from)
+
+    recorder = get_instance(hass)
+    existing = await recorder.async_add_executor_job(
         partial(
             statistics_during_period,
             hass,
-            windows[0][1],
+            read_from,
             windows[-1][2],
             {entity_id},
             "hour",
@@ -128,7 +184,7 @@ async def _inject_sensor_statistics(
         if row.get("start") is not None
     }
 
-    newest = await get_instance(hass).async_add_executor_job(
+    newest = await recorder.async_add_executor_job(
         get_last_statistics, hass, 1, entity_id, True, {"mean"}
     )
     rows = newest.get(entity_id)
@@ -136,19 +192,18 @@ async def _inject_sensor_statistics(
         rows[0]["start"] if rows and rows[0].get("start") is not None else None
     )
 
-    # One StatisticData entry per missing or mispriced hour before the newest one.
-    stats_data: list[StatisticData] = []
-    for value, start_dt, end_dt in windows:
-        expected = round(value, 4)
-        current = start_dt.astimezone(dt_util.UTC)
-        limit = end_dt.astimezone(dt_util.UTC)
-        while current < limit:
-            if recorder_owns_after is not None and current.timestamp() >= recorder_owns_after:
-                break
-            mean = stored_mean.get(int(current.timestamp()))
-            if mean is None or round(mean, 4) != expected:
-                stats_data.append(StatisticData(start=current, mean=value))
-            current += timedelta(hours=1)
+    stats_data = await recorder.async_add_executor_job(
+        _hours_to_write, windows, stored_mean, recorder_owns_after, check_from
+    )
+
+    if verified is not None:
+        # Settled up to the recorder's newest hour, or to the end of the window
+        # when the recorder has nothing yet; the hours from there on are looked
+        # at again by the next run.
+        reached = windows[-1][2].astimezone(dt_util.UTC)
+        if recorder_owns_after is not None:
+            reached = min(reached, dt_util.utc_from_timestamp(recorder_owns_after))
+        verified[entity_id] = (signature, reached)
 
     if not stats_data:
         return

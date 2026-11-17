@@ -78,6 +78,14 @@ ofertę z nowym cennikiem albo wracasz na taryfę. Wtedy w **Skonfiguruj ponowni
 Zmiana jest **dopisywana** do historii: wcześniejsze miesiące zachowują ceny, które wtedy obowiązywały.
 Literówkę poprawisz, wpisując ceny ponownie z tą samą datą co ostatnia zmiana.
 
+### Gdy kończy się tabela taryf
+
+Ceny są częścią integracji i obowiązują do końca zatwierdzonej taryfy (zwykle 31 grudnia). Dwa
+tygodnie przed tym dniem w **Ustawienia → System → Naprawy** pojawia się ostrzeżenie, a po nim —
+informacja, że tabela się skończyła: sensory cen nic wtedy nie pokazują, a koszty liczone przez
+Enea Licznik przestają rosnąć. Wystarczy zaktualizować integrację do wydania z nową taryfą;
+brakujące dni kosztów Enea Licznik policzy sam.
+
 ## Sensory – przykład dla G12 (21 marca 2026)
 
 Aktywny okres taryfowy: **1 lutego – 31 grudnia 2026**

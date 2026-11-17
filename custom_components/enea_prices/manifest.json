@@ -1,10 +1,11 @@
 {
   "domain": "enea_prices",
   "name": "Enea Ceny",
-  "after_dependencies": ["recorder"],
   "codeowners": ["@PanSzelescik"],
   "config_flow": true,
+  "dependencies": ["recorder"],
   "documentation": "https://github.com/PanSzelescik/home-assistant-enea-prices",
+  "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/PanSzelescik/home-assistant-enea-prices/issues",
   "requirements": ["holidays>=0.64"],

@@ -198,5 +198,15 @@
       "valid_from":                    { "name": "Taryfa obowiązuje od" },
       "valid_until":                   { "name": "Taryfa obowiązuje do (włącznie)" }
     }
+  },
+  "issues": {
+    "tariff_table_ending": {
+      "title": "Enea Ceny {tariff}: tabela cen kończy się {valid_until}",
+      "description": "Ceny grupy **{tariff}** dołączone do tej wersji integracji obowiązują do **{valid_until}**. Po tym dniu sensory cen nie będą nic pokazywać, a koszty energii liczone przez Enea Licznik przestaną rosnąć.\n\nZaktualizuj Enea Ceny, gdy ukaże się wydanie z nową taryfą — zwykle pojawia się krótko po jej zatwierdzeniu przez URE. Jeśli masz ceny z umowy, cena energii zostaje taka, jaką wpisano; stawki dystrybucji nadal pochodzą z tabeli.\n\nMożesz zignorować to zgłoszenie."
+    },
+    "tariff_table_ended": {
+      "title": "Enea Ceny {tariff}: tabela cen skończyła się {valid_until}",
+      "description": "Ceny grupy **{tariff}** dołączone do tej wersji integracji obowiązywały do **{valid_until}**. Sensory cen nic teraz nie pokazują, a koszty energii liczone przez Enea Licznik przestały rosnąć.\n\nZaktualizuj Enea Ceny do wydania z aktualną taryfą. Po aktualizacji Enea Licznik sam policzy koszty brakujących dni."
+    }
   }
 }

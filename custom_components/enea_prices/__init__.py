@@ -13,6 +13,7 @@ from homeassistant.exceptions import ConfigEntryError
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    AKCYZA,
     CONF_ANNUAL_KWH,
     CHANGE_ENERGY,
     CHANGE_TRADE_FEE,
@@ -27,6 +28,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
+from .issues import async_delete_table_issues, async_update_table_issue
 from .tariffs import (
     TARIFFS,
     PriceChange,
@@ -49,6 +51,9 @@ class EneaPricesRuntimeData:
     billing_months: int
     contract_power: float | None = None
     """Contracted power in kW of a contract_power group (C11); None for the G groups."""
+    akcyza: float = AKCYZA
+    """Excise duty per kWh, netto.  Here for the enea integration, which adds it
+    to the energy price; it used to dig the constant out of sys.modules."""
     unsub_listeners: list[Callable[[], None]] = field(default_factory=list)
 
 
@@ -137,6 +142,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EneaPricesConfigEntry) -
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Checked again every midnight by the sensor platform.
+    async_update_table_issue(hass, entry.entry_id, group)
 
     # Reload any enea (meter) entries that share this tariff so they can
     # create cost sensors now that enea_prices runtime data is available.
@@ -150,5 +157,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: EneaPricesConfigEntry) 
     for unsub in entry.runtime_data.unsub_listeners:
         unsub()
     entry.runtime_data.unsub_listeners.clear()
+    async_delete_table_issues(hass, entry.entry_id)
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -16,8 +16,16 @@ from homeassistant.util import dt as dt_util
 
 from . import EneaPricesConfigEntry
 from .const import CHANGE_ENERGY, CONF_PRICE_CHANGES, DOMAIN, UNIT_MONTHLY, UNIT_PRICE
-from .statistics import async_inject_price_statistics
+from .issues import async_update_table_issue
+from .statistics import VerifiedHours, async_inject_price_statistics
 from .tariffs import MonthlyFees, TariffGroup, TariffPeriod, Zone
+
+# Home Assistant reads this from the platform module.  The sensors compute their
+# state from the tariff table and are never polled, so nothing has to be throttled.
+PARALLEL_UPDATES = 0
+
+# hass.data key of what the price statistics runs have already checked, by sensor.
+DATA_VERIFIED_STATISTICS = f"{DOMAIN}_verified_statistics"
 
 
 async def async_setup_entry(
@@ -143,7 +151,10 @@ async def async_setup_entry(
         )
 
     async_add_entities(dynamic_sensors + static_sensors)
-    hass.async_create_task(async_inject_price_statistics(hass, group))
+    # Kept for as long as Home Assistant runs, across reloads of the entry: a
+    # later run only looks at the hours since the last one.
+    verified: VerifiedHours = hass.data.setdefault(DATA_VERIFIED_STATISTICS, {})
+    hass.async_create_task(async_inject_price_statistics(hass, group, verified))
 
     # The injection above writes nothing past the newest stored statistic, so
     # the hours an installation was down for are skipped: right after a start
@@ -158,7 +169,7 @@ async def async_setup_entry(
         """Inject again now that the recorder has closed a full hour."""
         nonlocal gap_fill_pending
         gap_fill_pending = False  # async_listen_once unsubscribed itself
-        hass.async_create_task(async_inject_price_statistics(hass, group))
+        hass.async_create_task(async_inject_price_statistics(hass, group, verified))
 
     unsub_gap_fill = hass.bus.async_listen_once(
         EVENT_RECORDER_HOURLY_STATISTICS_GENERATED, _fill_gaps_once_the_recorder_moves
@@ -177,9 +188,12 @@ async def async_setup_entry(
 
     entry.runtime_data.unsub_listeners.append(_drop_gap_fill_listener)
 
-    # Refresh dynamic sensors at zone boundaries
-    period_for_listeners = period or (group.periods[0] if group.periods else None)
-    zone_change_hours = period_for_listeners.get_zone_change_hours() if period_for_listeners else []
+    # Refresh dynamic sensors at zone boundaries.  Those of every period, not
+    # only of the one in force at setup: nothing polls the sensors, so a period
+    # with another schedule starting later has to find its hours covered.
+    zone_change_hours = sorted(
+        {hour for any_period in group.periods for hour in any_period.get_zone_change_hours()}
+    )
 
     @callback
     def _on_zone_change(_now: object) -> None:
@@ -204,6 +218,8 @@ async def async_setup_entry(
         """
         for sensor in (*dynamic_sensors, *static_sensors):
             sensor.async_write_ha_state()
+        # The table may have run out today, or be about to.
+        async_update_table_issue(hass, entry.entry_id, group)
 
     unsub = async_track_time_change(hass, _on_midnight, hour=0, minute=0, second=0)
     entry.runtime_data.unsub_listeners.append(unsub)
@@ -222,6 +238,9 @@ class EneaPricesDynamicSensor(SensorEntity):
     """Sensor whose value depends on the current time zone and active tariff period."""
 
     _attr_has_entity_name = True
+    # The state changes at zone boundaries and at midnight, when the platform
+    # writes it; polling would recompute and write it every 30 seconds for nothing.
+    _attr_should_poll = False
     _attr_suggested_display_precision = 4
 
     def __init__(
@@ -265,6 +284,9 @@ class EneaPricesStaticSensor(SensorEntity):
     """
 
     _attr_has_entity_name = True
+    # The state changes at zone boundaries and at midnight, when the platform
+    # writes it; polling would recompute and write it every 30 seconds for nothing.
+    _attr_should_poll = False
     _attr_suggested_display_precision = 4
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -301,6 +323,9 @@ class EneaPricesMonthlyFeeSensor(SensorEntity):
     """Sensor showing a personalised monthly fee in zł."""
 
     _attr_has_entity_name = True
+    # The state changes at zone boundaries and at midnight, when the platform
+    # writes it; polling would recompute and write it every 30 seconds for nothing.
+    _attr_should_poll = False
     _attr_suggested_display_precision = 2
     _attr_native_unit_of_measurement = UNIT_MONTHLY
 
@@ -332,6 +357,9 @@ class EneaPricesDateSensor(SensorEntity):
     """Sensor showing valid_from or valid_until of the current tariff period."""
 
     _attr_has_entity_name = True
+    # The state changes at zone boundaries and at midnight, when the platform
+    # writes it; polling would recompute and write it every 30 seconds for nothing.
+    _attr_should_poll = False
     _attr_device_class = SensorDeviceClass.DATE
 
     def __init__(
