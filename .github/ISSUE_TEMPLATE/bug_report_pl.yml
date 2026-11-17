@@ -19,7 +19,7 @@ body:
     id: integration_version
     attributes:
       label: Wersja integracji Enea Ceny
-      placeholder: "np. 0.6.0"
+      placeholder: "np. 0.7.0"
     validations:
       required: true
 
