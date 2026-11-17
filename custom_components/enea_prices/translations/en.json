@@ -198,5 +198,15 @@
       "valid_from":                    { "name": "Tariff valid from" },
       "valid_until":                   { "name": "Tariff valid until (inclusive)" }
     }
+  },
+  "issues": {
+    "tariff_table_ending": {
+      "title": "Enea Ceny {tariff}: the price table ends on {valid_until}",
+      "description": "The prices of group **{tariff}** bundled with this version of the integration are valid until **{valid_until}**. After that day the price sensors will report nothing and the energy costs computed by Enea Licznik will stop growing.\n\nUpdate Enea Ceny once a release with the new tariff is out — it usually appears shortly after the regulator (URE) approves the tariff. If you have contract prices, your energy price stays as entered; the distribution rates still come from the table.\n\nYou can ignore this notice."
+    },
+    "tariff_table_ended": {
+      "title": "Enea Ceny {tariff}: the price table ended on {valid_until}",
+      "description": "The prices of group **{tariff}** bundled with this version of the integration were valid until **{valid_until}**. The price sensors report nothing now and the energy costs computed by Enea Licznik have stopped growing.\n\nUpdate Enea Ceny to a release with the current tariff. Once it is installed, Enea Licznik computes the costs of the missing days by itself."
+    }
   }
 }

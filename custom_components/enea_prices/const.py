@@ -56,6 +56,15 @@ ZONE_PRICE_ATTRS: list[tuple[str, str]] = [
     ("price_energy", "energy"),
 ]
 
+# --- Repairs ---
+# Tabela taryf kończy się na sztywnej dacie.  Zgłoszenie „kończy się” pojawia się tyle dni
+# przed jej ostatnim dniem (nowa taryfa bywa zatwierdzana w połowie grudnia), a „skończyła
+# się” – od następnego dnia, dopóki nie przyjdzie wydanie z nową taryfą.
+ISSUE_TARIFF_TABLE_ENDING = "tariff_table_ending"
+ISSUE_TARIFF_TABLE_ENDED = "tariff_table_ended"
+TARIFF_TABLE_WARNING_DAYS = 14
+RELEASES_URL = "https://github.com/PanSzelescik/home-assistant-enea-prices/releases"
+
 # --- Config flow selectors ---
 PHASES_OPTIONS = [
     {"value": "1", "label": "1-fazowa"},

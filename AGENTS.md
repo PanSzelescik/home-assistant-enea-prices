@@ -19,6 +19,7 @@ custom_components/enea_prices/
   __init__.py       # setup/unload, EneaPricesRuntimeData
   config_flow.py    # 3 kroki: taryfa → szczegóły instalacji → ceny (taryfa URE / z umowy); to samo w reconfigure
   meter.py          # podpowiedzi z licznika integracji enea (MeterHint, duck typing)
+  issues.py         # zgłoszenia w Naprawach: tabela taryf kończy się / skończyła się
   const.py          # DOMAIN, PLATFORMS, klucze konfiguracji
   tariffs.py        # model danych: TariffGroup > TariffPeriod > ZonePricing + MonthlyFees
   sensor.py         # ~25 sensory (G12): 6 dynamicznych + 10 per-strefa + 3 diagnostyczne + 4 miesięczne + 2 datowe
@@ -164,6 +165,16 @@ poprawiają historię. Zapisywane są wyłącznie godziny sprzed najnowszej zapi
 kompiluje statystyki tych sensorów; import tej samej godziny ścigałby się z jego
 ślepym INSERT-em i wycofywał całą paczkę nadrabianych statystyk.
 
+Pierwszy przebieg po starcie HA czyta i przechodzi całe okno sensora (lata godzin), więc samo
+porównywanie (`_hours_to_write`) biegnie w executorze rekordera, nie w pętli zdarzeń. Dokąd
+przebieg doszedł i przy jakich cenach, pamięta `VerifiedHours` w `hass.data[DATA_VERIFIED_STATISTICS]`
+(`sensor.py`) — kolejny przebieg z tymi samymi cenami (po pierwszej godzinie skompilowanej przez
+rekorder, po przeładowaniu wpisu) czyta i sprawdza tylko godziny od tego miejsca. Znacznik kończy
+się na najnowszej godzinie rekordera, więc luka po przestoju jest sprawdzana. Celowo tylko w
+pamięci: zapisy są tu jedynie kolejkowane, a znacznik na dysku przeżyłby zapis, którego rekorder
+nie wykonał, i schował dziurę na stałe. Zmiana cen (inna sygnatura `(cena, pierwszy dzień)` okresów)
+sprawdza wszystko od nowa.
+
 Energy dashboard — opcja „Użyj encji z bieżącą ceną": wybierz statyczny sensor per strefa
 (np. `day_price_total`, `night_price_total`). HA pobierze historyczne mean-statystyki z recordera
 i policzy koszty retroaktywnie od `valid_from`.
@@ -173,6 +184,29 @@ w bieżącej strefie — dla aplikacji liczących koszt z sensora HA, np. rejest
 statyczne `{zone}_price_total_brutto`. Wyjątek: wstrzykiwane statystyki pozostają netto
 (`ZONE_PRICE_ATTRS` nie zawiera `total_brutto`) — koszty brutto oblicza `costs.py` w integracji `enea`,
 a drugi komplet ~35 tys. wierszy na grupę niczego by tam nie dodał.
+
+## Sensory bez odpytywania
+
+Wszystkie klasy sensorów mają `_attr_should_poll = False`, a platforma `PARALLEL_UPDATES = 0`.
+Stan liczy się z tabeli taryf przy każdym zapisie, a zapisuje go platforma: na granicach stref
+(`async_track_time_change` dla godzin zmiany strefy **wszystkich** okresów grupy, nie tylko
+bieżącego — okres z innym harmonogramem zaczynający się później też musi mieć swoje godziny)
+i o północy (wszystkie sensory). Bez `should_poll = False` HA przeliczał i zapisywał każdy sensor
+co 30 s.
+
+## Zgłoszenia w Naprawach (`issues.py`)
+
+Tabela taryf kończy się na sztywnej dacie (ostatni `valid_until` grupy). Po niej sensory nic nie
+pokazują, a koszty w integracji enea przestają rosnąć. `async_update_table_issue` — wołane w
+setupie wpisu i o północy — zakłada zgłoszenie `tariff_table_ending`
+(`TARIFF_TABLE_WARNING_DAYS` dni przed ostatnim dniem) albo `tariff_table_ended` (od następnego
+dnia); `table_issue` to czysta funkcja decydująca, które. ID: `{klucz}_{entry_id}`, ostrzeżenia
+nienaprawialne i nietrwałe, `learn_more_url` prowadzi do wydań. Unload wpisu je kasuje. Ceny z
+umowy niczego nie zmieniają — stawki dystrybucji nadal są z tabeli. Po dopisaniu okresu na kolejny
+rok zgłoszenie znika samo.
+
+`EneaPricesRuntimeData.akcyza` wystawia akcyzę integracji enea (rachunek); stała `AKCYZA` w
+`const.py` zostaje dla jej starszych wersji i dla kosztów.
 
 ## Opłaty miesięczne
 

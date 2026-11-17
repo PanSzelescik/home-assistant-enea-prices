@@ -107,6 +107,7 @@ class FakeHass:
         self.config_entries = _FakeConfigEntries(entries or [])
         self.bus = FakeBus()
         self.tasks: list[Any] = []
+        self.data: dict[str, Any] = {}
 
     def async_create_task(self, coro: Any) -> None:
         """Keep the coroutine so the test can await it deliberately."""
@@ -152,6 +153,8 @@ class PlatformSetup:
     entities: list[Any]
     at_hour: dict[int, list[Any]]
     """The callbacks the platform scheduled, by the hour they run at."""
+    issue_checks: list[Any] = field(default_factory=list)
+    """One entry id per check of the tariff table issue the platform asked for."""
 
     def sensor(self, key: str) -> Any:
         """Return the entity registered under a key, e.g. "quality_fee"."""
@@ -173,9 +176,15 @@ def platform(monkeypatch: pytest.MonkeyPatch):
     injections: list[Any] = []
     at_hour: dict[int, list[Any]] = {}
 
-    async def _record_injection(hass: Any, group: Any) -> None:
+    issue_checks: list[Any] = []
+
+    async def _record_injection(hass: Any, group: Any, verified: Any = None) -> None:
         """Stand in for the injection, which has tests of its own."""
         injections.append(group)
+
+    def _record_issue_check(hass: Any, entry_id: str, group: Any) -> None:
+        """Stand in for the tariff table issue, which needs an issue registry."""
+        issue_checks.append(entry_id)
 
     def _record_time_change(hass: Any, action: Any, **when: int) -> Callable[[], None]:
         """Record a scheduled callback instead of arming a real timer."""
@@ -186,6 +195,9 @@ def platform(monkeypatch: pytest.MonkeyPatch):
         prices_sensor, "async_inject_price_statistics", _record_injection
     )
     monkeypatch.setattr(prices_sensor, "async_track_time_change", _record_time_change)
+    monkeypatch.setattr(prices_sensor, "async_update_table_issue", _record_issue_check)
+    # Unloading drops the issues, which takes a real issue registry.
+    monkeypatch.setattr(enea_prices, "async_delete_table_issues", lambda hass, entry_id: None)
 
     async def _setup(
         tariff: str = "G12w",
@@ -207,7 +219,7 @@ def platform(monkeypatch: pytest.MonkeyPatch):
         entities: list[Any] = []
         await prices_sensor.async_setup_entry(hass, entry, entities.extend)
         await hass.async_settle()
-        return PlatformSetup(hass, entry, injections, entities, at_hour)
+        return PlatformSetup(hass, entry, injections, entities, at_hour, issue_checks)
 
     return _setup
 
